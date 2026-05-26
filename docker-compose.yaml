@@ -107,13 +107,13 @@ services:
       - kafka3
     networks:
       - kafka_network
-      - traefik_network
+      - traefik_traefik_network
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.kafka-ui.rule=Host(`ku.group1.querabootcamp-de.ir`)"
       - "traefik.http.routers.kafka-ui.entrypoints=web"
       - "traefik.http.services.kafka-ui.loadbalancer.server.port=8080"
-      - "traefik.docker.network=traefik_network"
+      - "traefik.docker.network=traefik_traefik_network"
 
 
 volumes:
@@ -128,7 +128,7 @@ networks:
   mongo_network:
   postgres_network:
   kafka_network:
-  traefik_network:
+  traefik_traefik_network:
     external: true
 
 
