@@ -227,9 +227,9 @@ services:
       - "traefik.http.routers.airflow.rule=Host(`airflow.group1.querabootcamp-de.ir`)"
       - "traefik.http.routers.airflow.entrypoints=web"
       - "traefik.http.services.airflow.loadbalancer.server.port=8080"
-      - "traefik.docker.network=traefik_network"
+      - "traefik.docker.network=traefik_traefik_network"
     networks:
-      - traefik_network
+      - traefik_traefik_network
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/monitor/health"]
       interval: 30s
