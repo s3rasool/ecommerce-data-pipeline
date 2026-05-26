@@ -9,7 +9,7 @@ services:
     volumes:
       - mongo_data:/data/db
       - mongo_configdb:/data/configdb
-      - ./mongodb/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro  
+      - ./mongodb/init/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
     networks:
       - mongo_network
 
