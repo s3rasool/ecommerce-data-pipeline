@@ -119,5 +119,7 @@ networks:
   mongo_network:
   postgres_network:
   kafka_network:
+  traefik_network:
+    external: true
 
 
