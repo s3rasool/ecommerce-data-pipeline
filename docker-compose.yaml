@@ -48,6 +48,7 @@ services:
   mongodb:
     image: ${REGISTRY}/mongo:7.0.14
     hostname: mongodb
+    container_name: mongodb
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
@@ -58,9 +59,10 @@ services:
     networks:
       - mongo_network
 
-  postgres:
+  postgresdb:
     image: ${REGISTRY}/postgres:16
     hostname: postgresdb
+    container_name: postgresdb
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -164,6 +166,7 @@ services:
 
   postgres-airflow:
     image: ${REGISTRY}/postgres:16
+    container_name: postgres-airflow
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
@@ -183,6 +186,7 @@ services:
     # Redis is limited to 7.2-bookworm due to licencing change
     # https://redis.io/blog/redis-adopts-dual-source-available-licensing/
     image: ${REGISTRY}/redis:7.2-alpine
+    container_name: redis-airflow
     expose:
       - 6379
     networks:
@@ -198,6 +202,7 @@ services:
   airflow-apiserver:
     <<: *airflow-common
     command: api-server
+    container_name: airflow-apiserver
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.airflow.rule=Host(`airflow.group4.querabootcamp-de.ir`)"
@@ -222,6 +227,7 @@ services:
   airflow-scheduler:
     <<: *airflow-common
     command: scheduler
+    container_name: airflow-scheduler
     healthcheck:
       test: [ "CMD", "curl", "--fail", "http://localhost:8974/health" ]
       interval: 30s
@@ -237,6 +243,7 @@ services:
   airflow-dag-processor:
     <<: *airflow-common
     command: dag-processor
+    container_name: airflow-dag-processor
     healthcheck:
       test: [ "CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"' ]
       interval: 30s
@@ -252,6 +259,7 @@ services:
   airflow-worker:
     <<: *airflow-common
     command: celery worker
+    container_name: airflow-worker
     healthcheck:
       # yamllint disable rule:line-length
       test: [ "CMD-SHELL", 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"' ]
@@ -275,6 +283,7 @@ services:
   airflow-triggerer:
     <<: *airflow-common
     command: triggerer
+    container_name: airflow-triggerer
     healthcheck:
       test: [ "CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"' ]
       interval: 30s
@@ -292,6 +301,7 @@ services:
     entrypoint: [ "/bin/bash", "-c" ]
     # yamllint disable rule:line-length
     command: [ "/opt/airflow/docker-init.sh" ]
+    container_name: airflow-init
     # yamllint enable rule:line-length
     environment:
       <<: *airflow-common-env
@@ -304,6 +314,7 @@ services:
 
   airflow-cli:
     <<: *airflow-common
+    container_name: airflow-cli
     profiles:
       - debug
     environment:
@@ -323,6 +334,7 @@ services:
   flower:
     <<: *airflow-common
     command: celery flower
+    container_name: airflow-flower
     profiles:
       - flower
     ports:
