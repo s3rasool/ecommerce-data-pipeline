@@ -156,7 +156,7 @@ services:
       - traefik_traefik_network
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.kafka-ui.rule=Host(`ku.group1.querabootcamp-de.ir`)"
+      - "traefik.http.routers.kafka-ui.rule=Host(`ku.group4.querabootcamp-de.ir`)"
       - "traefik.http.routers.kafka-ui.entrypoints=web"
       - "traefik.http.services.kafka-ui.loadbalancer.server.port=8080"
       - "traefik.docker.network=traefik_traefik_network"
@@ -200,7 +200,7 @@ services:
     command: api-server
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.airflow.rule=Host(`airflow.group1.querabootcamp-de.ir`)"
+      - "traefik.http.routers.airflow.rule=Host(`airflow.group4.querabootcamp-de.ir`)"
       - "traefik.http.routers.airflow.entrypoints=web"
       - "traefik.http.services.airflow.loadbalancer.server.port=8080"
       - "traefik.docker.network=traefik_traefik_network"
