@@ -18,7 +18,7 @@ with DAG(
     dag_id="wait_for_all_csv_files",
     default_args=default_args,
     start_date=datetime(2024, 1, 1),
-    schedule=None,
+    schedule='@daily',
     catchup=False,
 ) as dag:
 
