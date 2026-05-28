@@ -34,6 +34,7 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/plugins:/opt/airflow/plugins
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/docker-init.sh:/opt/airflow/docker-init.sh
+    - ${PROJ_DATA_DIR}:/opt/airflow/data
   user: "${AIRFLOW_UID:-50000}:0"
   networks:
     - airflow_network
