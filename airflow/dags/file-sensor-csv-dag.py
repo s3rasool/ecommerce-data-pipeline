@@ -9,7 +9,7 @@ from airflow.models import Variable
 def done():
     print('Done')
 
-def process_file_incrementally(file_path: str, variable_key: str):
+def track_csv_file(file_path: str, variable_key: str):
     last_offset = int(Variable.get(variable_key, default_var=0))
 
     try:
@@ -41,21 +41,21 @@ def process_file_incrementally(file_path: str, variable_key: str):
 
 
 def process_products():
-    process_file_incrementally(
+    track_csv_file(
         file_path="/opt/airflow/data/products.csv",
         variable_key="products_csv_last_offset",
     )
 
 
 def process_orders():
-    process_file_incrementally(
+    track_csv_file(
         file_path="/opt/airflow/data/orders.csv",
         variable_key="orders_csv_last_offset",
     )
 
 
 def process_users():
-    process_file_incrementally(
+    track_csv_file(
         file_path="/opt/airflow/data/users.csv",
         variable_key="users_csv_last_offset",
     )
