@@ -2,7 +2,7 @@ import pandas as pd
 import re
 
 
-def extract_users(file_path="../test_data/users.csv", last_processed_count=0):
+def extract_users(file_path, last_processed_count=0):
     """
     Extract new rows from users CSV.
     
@@ -36,7 +36,7 @@ def extract_users(file_path="../test_data/users.csv", last_processed_count=0):
     return df, new_count
 
 
-def extract_orders(file_path="../test_data/orders.csv", last_processed_count=0):
+def extract_orders(file_path, last_processed_count=0):
     """
     Extract new rows from orders CSV.
     
@@ -70,7 +70,7 @@ def extract_orders(file_path="../test_data/orders.csv", last_processed_count=0):
     return df, new_count
 
 
-def extract_products(file_path="../test_data/products.csv"):
+def extract_products(file_path):
     """
     Extract all rows from products CSV (full reload).
     
