@@ -1,12 +1,65 @@
 from datetime import datetime, timedelta
 from airflow import DAG
-from airflow.sensors.filesystem import FileSensor
 from airflow.operators.python import PythonOperator
+from airflow.models import Variable
 
 
-# just for test
+
+# for test
 def done():
-    print("All CSV files detected.")
+    print('Done')
+
+def process_file_incrementally(file_path: str, variable_key: str):
+    last_offset = int(Variable.get(variable_key, default_var=0))
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            f.seek(last_offset)
+            new_data = f.read()
+            new_offset = f.tell()
+
+        if not new_data.strip():
+            print(f"[INFO] No new content in {file_path}")
+            print(f"[INFO] Last offset remains: {last_offset}")
+            return
+
+        print(f"[INFO] New content detected in {file_path}")
+        print(f"[INFO] Previous offset: {last_offset}")
+        print(f"[INFO] New offset: {new_offset}")
+        print("[INFO] Newly appended content:")
+        print(new_data)
+
+        Variable.set(variable_key, new_offset)
+        print(f"[INFO] Updated Airflow Variable '{variable_key}' to {new_offset}")
+
+    except FileNotFoundError:
+        print(f"[ERROR] File not found: {file_path}")
+        raise
+    except Exception as e:
+        print(f"[ERROR] Unexpected error while processing {file_path}: {e}")
+        raise
+
+
+def process_products():
+    process_file_incrementally(
+        file_path="/opt/airflow/data/products.csv",
+        variable_key="products_csv_last_offset",
+    )
+
+
+def process_orders():
+    process_file_incrementally(
+        file_path="/opt/airflow/data/orders.csv",
+        variable_key="orders_csv_last_offset",
+    )
+
+
+def process_users():
+    process_file_incrementally(
+        file_path="/opt/airflow/data/users.csv",
+        variable_key="users_csv_last_offset",
+    )
+
 
 default_args = {
     "owner": "airflow",
@@ -14,41 +67,35 @@ default_args = {
     "retry_delay": timedelta(minutes=1),
 }
 
+
 with DAG(
-    dag_id="wait_for_all_csv_files",
+    dag_id="wait_for_csv_file_changes",
     default_args=default_args,
     start_date=datetime(2024, 1, 1),
-    schedule='@daily',
+    schedule="@daily",
     catchup=False,
+    tags=["csv", "tracker", "extractor"],
 ) as dag:
 
-    wait_for_products = FileSensor(
-        task_id="wait_for_products_csv",
-        filepath="/opt/airflow/data/products.csv",
-        poke_interval=300,
-        timeout=600,
-        mode="poke",
+    process_products_task = PythonOperator(
+        task_id="process_products_csv",
+        python_callable=process_products,
     )
 
-    wait_for_orders = FileSensor(
-        task_id="wait_for_orders_csv",
-        filepath="/opt/airflow/data/orders.csv",
-        poke_interval=300,
-        timeout=600,
-        mode="poke",
+    process_orders_task = PythonOperator(
+        task_id="process_orders_csv",
+        python_callable=process_orders,
     )
 
-    wait_for_users = FileSensor(
-        task_id="wait_for_users_csv",
-        filepath="/opt/airflow/data/users.csv",
-        poke_interval=300,
-        timeout=600,
-        mode="poke",
+    process_users_task = PythonOperator(
+        task_id="process_users_csv",
+        python_callable=process_users,
     )
-
-    finish = PythonOperator(
-        task_id="finish",
+    
+    done = PythonOperator(
+        task_id="done",
         python_callable=done,
     )
 
-    [wait_for_products, wait_for_orders, wait_for_users] >> finish
+
+    [process_products_task, process_orders_task, process_users_task] >> done
