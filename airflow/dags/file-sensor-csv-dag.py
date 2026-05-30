@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 from airflow import DAG
-from airflow.operators.python import PythonOperator, BranchPythonOperator
+from airflow.operators.python import PythonOperator, ShortCircuitOperator
 from airflow.models import Variable
 
 from csv_extraction import extract_users, extract_orders, extract_products
@@ -14,43 +14,37 @@ from csv_extraction import extract_users, extract_orders, extract_products
 def track_csv_file(file_path: str, variable_key: str):
     last_processed_count = int(Variable.get(variable_key, default_var=0))
 
-    df = pd.read_csv(file_path)
-    total_rows = len(df)
-
-    if total_rows <= last_processed_count:
-        print(f"No new rows in {file_path}")
+    try:
+        new_df = pd.read_csv(
+            file_path,
+            skiprows=range(1, last_processed_count + 1)
+        )
+    except pd.errors.EmptyDataError:
+        print(f"[ERROR] {file_path} is empty.")
         return False
 
-    new_df = df.iloc[last_processed_count:]
+    if new_df.empty:
+        print(f"[INFO] No new rows in {file_path}")
+        return False
 
-    print(f"Found {len(new_df)} new rows in {file_path}")
+    print(f"[INFO] Found {len(new_df)} new raw rows in {file_path}")
     print(new_df)
 
     return True
 
 
-def track_orders_changes(**context):
-    has_changes = track_csv_file(
+def track_orders_changes():
+    return track_csv_file(
         file_path="/opt/airflow/data/orders.csv",
         variable_key="orders_csv_last_row",
     )
 
-    if has_changes:
-        return "extract_new_orders"
 
-    return None
-
-
-def track_users_changes(**context):
-    has_changes = track_csv_file(
+def track_users_changes():
+    return track_csv_file(
         file_path="/opt/airflow/data/users.csv",
         variable_key="users_csv_last_row",
     )
-
-    if has_changes:
-        return "extract_new_users"
-
-    return None
 
 
 def extract_new_users():
@@ -62,12 +56,11 @@ def extract_new_users():
     )
 
     if not new_users_df.empty:
-        print(f"{len(new_users_df)} new users extracted.")
-        print(new_users_df)
+        print(f"[INFO] {len(new_users_df)} new users extracted.")
     else:
-        print("No new valid users.")
+        print("[INFO] No new valid users.")
 
-    Variable.set("users_csv_last_row", new_last_row)
+    Variable.set("[INFO] users_csv_last_row", new_last_row)
 
 
 def extract_new_orders():
@@ -79,10 +72,9 @@ def extract_new_orders():
     )
 
     if not new_orders_df.empty:
-        print(f"{len(new_orders_df)} new orders extracted.")
-        print(new_orders_df)
+        print(f"[INFO] {len(new_orders_df)} new orders extracted.")
     else:
-        print("No new valid orders.")
+        print("[INFO] No new valid orders.")
 
     Variable.set("orders_csv_last_row", new_last_row)
 
@@ -93,10 +85,10 @@ def extract_all_products():
     )
 
     if not products_df.empty:
-        print(f"{len(products_df)} products extracted.")
+        print(f"[INFO] {len(products_df)} products extracted.")
         print(products_df)
     else:
-        print("No products available.")
+        print("[INFO] No products available.")
 
 
 default_args = {
@@ -115,7 +107,7 @@ with DAG(
     tags=["csv", "tracker", "extractor"],
 ) as dag:
 
-    track_users_task = BranchPythonOperator(
+    track_users_task = ShortCircuitOperator(
         task_id="track_users_changes",
         python_callable=track_users_changes,
     )
@@ -125,7 +117,7 @@ with DAG(
         python_callable=extract_new_users,
     )
 
-    track_orders_task = BranchPythonOperator(
+    track_orders_task = ShortCircuitOperator(
         task_id="track_orders_changes",
         python_callable=track_orders_changes,
     )
