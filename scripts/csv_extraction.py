@@ -16,6 +16,8 @@ def extract_users(file_path, last_processed_count=0):
     # Read only new rows
     df = pd.read_csv(file_path, skiprows=range(1, last_processed_count + 1))
     
+    raw_new_rows = len(df)
+    
     if df.empty:
         return df, last_processed_count
     
@@ -32,7 +34,7 @@ def extract_users(file_path, last_processed_count=0):
     # Drop duplicates
     df = df.drop_duplicates(subset=['user_id'])
     
-    new_count = last_processed_count + len(df)
+    new_count = last_processed_count + raw_new_rows
     return df, new_count
 
 
@@ -50,6 +52,8 @@ def extract_orders(file_path, last_processed_count=0):
     # Read only new rows
     df = pd.read_csv(file_path, skiprows=range(1, last_processed_count + 1))
     
+    raw_new_rows = len(df)
+    
     if df.empty:
         return df, last_processed_count
     
@@ -66,7 +70,7 @@ def extract_orders(file_path, last_processed_count=0):
     # Drop duplicates
     df = df.drop_duplicates(subset=['order_id'])
     
-    new_count = last_processed_count + len(df)
+    new_count = last_processed_count + raw_new_rows
     return df, new_count
 
 
