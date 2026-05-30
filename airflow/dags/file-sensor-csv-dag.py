@@ -1,7 +1,10 @@
+import sys
+sys.path.append('/opt/scripts')
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.models import Variable
+from csv_extraction import extract_users, extract_orders, extract_products
 
 
 
@@ -61,6 +64,34 @@ def process_users():
     )
 
 
+def extract_new_users():
+    last_offset = int(Variable.get("last_user_offset", default=0))
+    new_users_df, new_last_offset = extract_users(file_path="/opt/airflow/data/users.csv", last_processed_count=last_offset)
+    if not new_users_df.empty:
+        print(f"{len(new_users_df)} new users extracted.")
+        Variable.set("last_user_offset", new_last_offset)
+    else:
+        print("no new users.")
+
+
+def extract_new_orders():
+    last_offset = int(Variable.get("last_order_offset", default=0))
+    new_orders_df, new_last_offset = extract_orders(file_path="/opt/airflow/data/orders.csv", last_processed_count=last_offset)
+    if not new_orders_df.empty:
+        print(f"{len(new_orders_df)} new orders extracted.")
+        Variable.set("last_order_offset", new_last_offset)
+    else:
+        print("no new orders.")
+
+
+def extract_all_products():
+    products_df = extract_products(file_path="/opt/airflow/data/products.csv")
+    if not products_df.empty:
+        print(f"{len(products_df)} products extracted.")
+    else:
+        print("no products available.")
+
+
 default_args = {
     "owner": "airflow",
     "retries": 1,
@@ -91,7 +122,22 @@ with DAG(
         task_id="process_users_csv",
         python_callable=process_users,
     )
+
+    extract_new_users_task = PythonOperator(
+        task_id="extract_new_users",
+        python_callable=extract_new_users,
+    )
     
+    extract_new_orders_task = PythonOperator(
+        task_id="extract_new_orders",
+        python_callable=extract_new_orders,
+    )
+
+    extract_all_products_task = PythonOperator(
+        task_id="extract_all_products",
+        python_callable=extract_all_products,
+    )
+
     done = PythonOperator(
         task_id="done",
         python_callable=done,
