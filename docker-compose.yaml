@@ -28,6 +28,10 @@ x-airflow-common:
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
     # The following line can be used to set a custom config file, stored in the local config folder
     AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
+    AIRFLOW_CONN_POSTGRES_AIRFLOW: postgresql://airflow:airflow@postgres:5432/airflow
+    AIRFLOW_CONN_MONGODB_DEFAULT: mongodb://user:123@mongodb:27017/?authSource=admin
+    AIRFLOW_CONN_KAFKA_DEFAULT: kafka://kafka1:9092,kafka2:9092,kafka3:9092
+    AIRFLOW_CONN_CLICKHOUSE_DEFAULT: clickhouse://clickhouse:9000/default?user=default&password=
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/logs:/opt/airflow/logs
