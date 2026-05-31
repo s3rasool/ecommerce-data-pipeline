@@ -1,16 +1,18 @@
 import os
 import json
+import shutil
 from datetime import datetime, timezone
 
-from airflow.models import Variable
 
-
-def preprocess_behavior_json_files_incremental(
-    input_dir,
-    output_dir,
-    processed_files_variable,
+def transform_behavior_json_files(
+    extracted_dir,
+    transformed_dir,
+    # clean the extracted files folder if all files successfully transformed
+    cleanup_extracted=False,
+    # to skip already proccessed files(double safty)
+    skip_existing=True,
 ):
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(transformed_dir, exist_ok=True)
 
     required_fields = {
         "timestamp",
@@ -20,68 +22,52 @@ def preprocess_behavior_json_files_incremental(
         "session_id",
     }
 
-    if not os.path.exists(input_dir):
-        print(f"[ERROR] Input directory not found: {input_dir}")
+    if not os.path.exists(extracted_dir):
+        print(f"[ERROR] Extracted directory not found: {extracted_dir}")
         return
 
-    # I assumed that the tracker task will keep list of files that proccessed(must change after the two other tasks completed and have changes)
-    processed_files_raw = Variable.get(
-        processed_files_variable,
-        default_var="[]",
-    )
-
-    try:
-        processed_files = set(json.loads(processed_files_raw))
-    except json.JSONDecodeError:
-        print(
-            f"[WARN] Invalid Airflow Variable format for {processed_files_variable}. "
-            "Resetting to empty list."
-        )
-        processed_files = set()
-
-    input_files = sorted(
+    extracted_files = sorted(
         [
             file_name
-            for file_name in os.listdir(input_dir)
-            if file_name.endswith(".json")
+            for file_name in os.listdir(extracted_dir)
+            if file_name.endswith(".json") or file_name.endswith(".jsonl")
         ]
     )
 
-    if not input_files:
-        print(f"[INFO] No JSON/JSONL files found in: {input_dir}")
+    if not extracted_files:
+        print(f"[INFO] No JSON/JSONL files found in: {extracted_dir}")
         return
 
-    new_files = [
-        file_name
-        for file_name in input_files
-        if file_name not in processed_files
-    ]
-
-    if not new_files:
-        print("[INFO] No new behavior JSON files to process.")
-        return
-
-    print(f"[INFO] Found {len(new_files)} new file(s) to process.")
-
-    total_files_processed = 0
+    total_files_seen = len(extracted_files)
+    total_files_transformed = 0
+    total_files_skipped = 0
     total_raw_events = 0
     total_valid_events = 0
     total_invalid_events = 0
+    failed_files = []
 
-    successfully_processed_files = []
+    print(f"[INFO] Found {total_files_seen} extracted file(s).")
 
-    for file_name in new_files:
-        input_path = os.path.join(input_dir, file_name)
+    for file_name in extracted_files:
+        input_path = os.path.join(extracted_dir, file_name)
 
         base_name, _ = os.path.splitext(file_name)
-        output_file_name = f"{base_name}_clean.json"
-        output_path = os.path.join(output_dir, output_file_name)
+        output_file_name = f"{base_name}_transformed.jsonl"
+        output_path = os.path.join(transformed_dir, output_file_name)
+
+        if skip_existing and os.path.exists(output_path):
+            total_files_skipped += 1
+            print(
+                f"[INFO] Skipping already transformed file: {file_name} "
+                f"because output exists: {output_path}"
+            )
+            continue
 
         file_raw_events = 0
         file_valid_events = 0
         file_invalid_events = 0
 
-        print(f"[INFO] Processing file: {input_path}")
+        print(f"[INFO] Transforming file: {input_path}")
 
         try:
             with open(input_path, "r", encoding="utf-8") as input_file, \
@@ -179,46 +165,60 @@ def preprocess_behavior_json_files_incremental(
                         event["cart_items"] = cleaned_cart_items
 
                     event["source_file"] = file_name
-                    event["processed_at"] = datetime.now(timezone.utc).isoformat()
+                    event["transformed_at"] = datetime.now(timezone.utc).isoformat()
 
                     output_file.write(json.dumps(event, ensure_ascii=False) + "\n")
 
                     file_valid_events += 1
                     total_valid_events += 1
 
-            successfully_processed_files.append(file_name)
-            total_files_processed += 1
+            total_files_transformed += 1
 
-            print(f"[INFO] File processed successfully: {file_name}")
+            print(f"[INFO] File transformed successfully: {file_name}")
             print(f"[INFO] Raw events: {file_raw_events}")
-            print(f"[INFO] Valid events: {file_valid_events}")
-            print(f"[INFO] Invalid events: {file_invalid_events}")
+            print(f"[INFO] Valid transformed events: {file_valid_events}")
+            print(f"[INFO] Invalid skipped events: {file_invalid_events}")
             print(f"[INFO] Output written to: {output_path}")
 
         except Exception as e:
-            print(f"[ERROR] Failed to process file {file_name}: {e}")
+            failed_files.append(file_name)
+
+            print(f"[ERROR] Failed to transform file {file_name}: {e}")
 
             if os.path.exists(output_path):
                 os.remove(output_path)
-                print(f"[INFO] Removed partial output file: {output_path}")
+                print(f"[INFO] Removed partial transformed file: {output_path}")
 
             continue
 
-    if successfully_processed_files:
-        processed_files.update(successfully_processed_files)
-
-        Variable.set(
-            processed_files_variable,
-            json.dumps(sorted(processed_files)),
-        )
-
-        print(
-            f"[INFO] Updated Airflow Variable: {processed_files_variable}"
-        )
-
-    print("**** TOTAL SUMMARY ****")
-    print(f"[INFO] New files found: {len(new_files)}")
-    print(f"[INFO] Files successfully processed: {total_files_processed}")
+    print("**** TRANSFORMATION SUMMARY ****")
+    print(f"[INFO] Extracted files found: {total_files_seen}")
+    print(f"[INFO] Files transformed: {total_files_transformed}")
+    print(f"[INFO] Files skipped: {total_files_skipped}")
     print(f"[INFO] Total raw events: {total_raw_events}")
-    print(f"[INFO] Total valid events: {total_valid_events}")
-    print(f"[INFO] Total invalid events: {total_invalid_events}")
+    print(f"[INFO] Total valid transformed events: {total_valid_events}")
+    print(f"[INFO] Total invalid skipped events: {total_invalid_events}")
+
+    if failed_files:
+        print(f"[WARN] Some files failed and extracted folder will NOT be cleaned.")
+        print(f"[WARN] Failed files: {failed_files}")
+        return
+
+    if cleanup_extracted:
+        print(f"[INFO] Cleaning extracted directory: {extracted_dir}")
+
+        for item_name in os.listdir(extracted_dir):
+            item_path = os.path.join(extracted_dir, item_name)
+
+            try:
+                if os.path.isfile(item_path) or os.path.islink(item_path):
+                    os.remove(item_path)
+                elif os.path.isdir(item_path):
+                    shutil.rmtree(item_path)
+
+                print(f"[INFO] Removed: {item_path}")
+
+            except Exception as e:
+                print(f"[ERROR] Failed to remove {item_path}: {e}")
+
+        print(f"[INFO] Extracted directory cleaned successfully.")
