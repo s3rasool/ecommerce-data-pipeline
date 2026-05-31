@@ -2,10 +2,18 @@ from datetime import datetime, timedelta
 import os
 import glob
 import json
+
 from airflow import DAG
 from airflow.providers.standard.operators.python import PythonOperator
 
-OUT_DIR = "/opt/airflow/data/extracted"
+from scripts.json_transformation import transform_json_files
+
+
+
+RAW_DIR = "/opt/airflow/data/raw"
+EXTRACTED_DIR = "/opt/airflow/data/extracted"
+TRANSFORMED_DIR = "/opt/airflow/data/transformed"
+
 
 default_args = {
     "owner": "airflow",
@@ -13,13 +21,12 @@ default_args = {
     "retries": 1,
     "retry_delay": timedelta(minutes=2),
 }
-
 def extract_first_valid_jsonl(**context):
     """ change jsonl format to json format."""
     conf = (context["dag_run"].conf or {}) if context.get("dag_run") else {}
     raw_dir = conf.get("raw_dir", "/opt/airflow/data/raw")
 
-    os.makedirs(OUT_DIR, exist_ok=True)
+    os.makedirs(EXTRACTED_DIR, exist_ok=True)
 
     files = sorted(glob.glob(os.path.join(raw_dir, "*.json")))
     if not files:
@@ -39,29 +46,42 @@ def extract_first_valid_jsonl(**context):
 
             base = os.path.basename(input_path)              
             stem, _ = os.path.splitext(base)                 
-            output_path = os.path.join(OUT_DIR, f"{stem}_extracted.json")
+            output_path = os.path.join(EXTRACTED_DIR, f"{stem}_extracted.json")
 
             with open(output_path, "w", encoding="utf-8") as out:
                 json.dump(rows, out, ensure_ascii=False, indent=2)
 
             print(f"Extracted {len(rows)} records from {input_path} -> {output_path}")
-            return output_path
+            # return output_path
 
         except Exception as e:
             print(f"Skipping invalid file {input_path}: {e}")
 
     raise ValueError("No valid JSONL files found for extraction.")
+	
 
 with DAG(
     dag_id="json_extract_dag",
     default_args=default_args,
     start_date=datetime(2026, 1, 1),
-    schedule=None,     # only triggered
     catchup=False,
-    tags=["json", "extract"],
+    tags=["json", "extract", "transform"],
 ) as dag:
 
     extract_task = PythonOperator(
         task_id="extract_task",
         python_callable=extract_first_valid_jsonl,
     )
+
+    transform_task = PythonOperator(
+        task_id="transform_task",
+        python_callable=transform_json_files,
+        op_kwargs={
+            "extracted_dir": EXTRACTED_DIR,
+            "transformed_dir": TRANSFORMED_DIR,
+            "skip_existing": True,
+            "cleanup_extracted": True,
+        },
+    )
+
+    extract_task >> transform_task

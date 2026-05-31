@@ -1,10 +1,23 @@
+from datetime import datetime, timezone
 import os
 import json
 import shutil
-from datetime import datetime, timezone
 
 
-def transform_behavior_json_files(
+
+def parse_timestamp(value):
+    if value is None:
+        raise ValueError("timestamp is None")
+
+    value = str(value).strip()
+
+    if value.endswith("Z"):
+        value = value.replace("Z", "+00:00")
+
+    return datetime.fromisoformat(value)
+
+
+def transform_json_files(
     extracted_dir,
     transformed_dir,
     # clean the extracted files folder if all files successfully transformed
@@ -23,19 +36,18 @@ def transform_behavior_json_files(
     }
 
     if not os.path.exists(extracted_dir):
-        print(f"[ERROR] Extracted directory not found: {extracted_dir}")
-        return
+        raise ValueError(f"Extracted directory not found: {extracted_dir}")
 
     extracted_files = sorted(
         [
             file_name
             for file_name in os.listdir(extracted_dir)
-            if file_name.endswith(".json") or file_name.endswith(".jsonl")
+            if file_name.endswith(".json")
         ]
     )
 
     if not extracted_files:
-        print(f"[INFO] No JSON/JSONL files found in: {extracted_dir}")
+        print(f"[INFO] No JSON files found in: {extracted_dir}")
         return
 
     total_files_seen = len(extracted_files)
@@ -70,26 +82,23 @@ def transform_behavior_json_files(
         print(f"[INFO] Transforming file: {input_path}")
 
         try:
-            with open(input_path, "r", encoding="utf-8") as input_file, \
-                 open(output_path, "w", encoding="utf-8") as output_file:
+            with open(input_path, "r", encoding="utf-8") as input_file:
+                events = json.load(input_file)
 
-                for line_number, line in enumerate(input_file, start=1):
-                    line = line.strip()
+            if not isinstance(events, list):
+                raise ValueError(f"Extracted JSON file is not a list: {file_name}")
 
-                    if not line:
-                        continue
-
+            with open(output_path, "w", encoding="utf-8") as output_file:
+                for index, event in enumerate(events, start=1):
                     file_raw_events += 1
                     total_raw_events += 1
 
-                    try:
-                        event = json.loads(line)
-                    except json.JSONDecodeError as e:
+                    if not isinstance(event, dict):
                         file_invalid_events += 1
                         total_invalid_events += 1
                         print(
-                            f"[WARN] Invalid JSON in {file_name} "
-                            f"at line {line_number}: {e}"
+                            f"[WARN] Invalid event type in {file_name} "
+                            f"at record {index}. Expected dict."
                         )
                         continue
 
@@ -100,18 +109,18 @@ def transform_behavior_json_files(
                         total_invalid_events += 1
                         print(
                             f"[WARN] Missing fields in {file_name} "
-                            f"at line {line_number}: {missing_fields}"
+                            f"at record {index}: {missing_fields}"
                         )
                         continue
 
                     try:
-                        event_timestamp = datetime.fromisoformat(event["timestamp"])
-                    except ValueError:
+                        event_timestamp = parse_timestamp(event["timestamp"])
+                    except Exception as e:
                         file_invalid_events += 1
                         total_invalid_events += 1
                         print(
                             f"[WARN] Invalid timestamp in {file_name} "
-                            f"at line {line_number}: {event.get('timestamp')}"
+                            f"at record {index}: {event.get('timestamp')} | {e}"
                         )
                         continue
 
@@ -200,9 +209,9 @@ def transform_behavior_json_files(
     print(f"[INFO] Total invalid skipped events: {total_invalid_events}")
 
     if failed_files:
-        print(f"[WARN] Some files failed and extracted folder will NOT be cleaned.")
+        print("[WARN] Some files failed. Extracted folder will NOT be cleaned.")
         print(f"[WARN] Failed files: {failed_files}")
-        return
+        raise ValueError(f"Transformation failed for files: {failed_files}")
 
     if cleanup_extracted:
         print(f"[INFO] Cleaning extracted directory: {extracted_dir}")
@@ -220,5 +229,6 @@ def transform_behavior_json_files(
 
             except Exception as e:
                 print(f"[ERROR] Failed to remove {item_path}: {e}")
+                raise
 
-        print(f"[INFO] Extracted directory cleaned successfully.")
+        print("[INFO] Extracted directory cleaned successfully.")
