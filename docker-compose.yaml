@@ -38,6 +38,9 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/plugins:/opt/airflow/plugins
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/docker-init.sh:/opt/airflow/docker-init.sh
+    - ${AIRFLOW_PROJ_DIR:-.}/scripts:/opt/scripts
+    - ${PROJ_DATA_DIR}:/opt/airflow/data
+    
   user: "${AIRFLOW_UID:-50000}:0"
   networks:
     - airflow_network
@@ -60,6 +63,7 @@ services:
     volumes:
       - mongo_data:/data/db
       - mongo_configdb:/data/configdb
+      - ./mongodb/init/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
     networks:
       - mongo_network
 
