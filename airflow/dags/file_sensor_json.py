@@ -6,7 +6,7 @@ from airflow import DAG
 from airflow.providers.standard.sensors.python import PythonSensor
 from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
 
-RAW_DIR = "/opt/airflow/data/raw"
+RAW_DIR = "/opt/airflow/data/behavioral"
 
 default_args = {
     "owner": "airflow",
