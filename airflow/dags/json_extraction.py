@@ -52,7 +52,7 @@ def extract_first_valid_jsonl(**context):
                 json.dump(rows, out, ensure_ascii=False, indent=2)
 
             print(f"Extracted {len(rows)} records from {input_path} -> {output_path}")
-            # return output_path
+            return output_path
 
         except Exception as e:
             print(f"Skipping invalid file {input_path}: {e}")
