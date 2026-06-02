@@ -151,6 +151,22 @@ services:
     networks:
       - kafka_network
 
+  kafka-init:
+    image: ${REGISTRY}/confluentinc/cp-kafka:7.9.7
+    container_name: kafka-init
+    entrypoint: ["/bin/bash", "/scripts/create-topics.sh"]
+    volumes:
+      - ./kafka/init/create-topics.sh:/scripts/create-topics.sh:ro
+    depends_on:
+      kafka1:
+        condition: service_started
+      kafka2:
+        condition: service_started
+      kafka3:
+        condition: service_started
+    networks:
+      - kafka_network
+
   schema-registry:
     image: ${REGISTRY}/confluentinc/cp-schema-registry:7.9.7
     container_name: schema-registry
@@ -164,8 +180,8 @@ services:
       - kafka3
     networks:
       - kafka_network
-
-  kafbat-ui:
+        
+  kafbatui:
     container_name: kafka-ui
     image: ${REGISTRY}/kafbat/kafka-ui:v1.5.0
     environment:
@@ -331,6 +347,7 @@ services:
     # yamllint enable rule:line-length
     environment:
       <<: *airflow-common-env
+      AIRFLOW_UID: "${AIRFLOW_UID:-1000}"  
       _AIRFLOW_DB_MIGRATE: 'true'
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
