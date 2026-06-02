@@ -1,6 +1,7 @@
 import sys
 sys.path.append('/opt/scripts')
 
+import os
 from datetime import datetime, timedelta
 import pandas as pd
 
@@ -11,6 +12,11 @@ from airflow.providers.standard.operators.python import ShortCircuitOperator
 from airflow.sdk import Variable
 
 from csv_extraction import extract_users, extract_orders, extract_products
+
+
+STAGING_PATH = "/opt/airflow/data/staging"
+
+os.makedirs(STAGING_PATH, exist_ok=True)
 
 
 def track_csv_file(file_path: str, variable_key: str):
@@ -57,8 +63,10 @@ def extract_new_users():
         last_processed_count=last_row
     )
 
+
     if not new_users_df.empty:
-        print(f"[INFO] {len(new_users_df)} new users extracted.")
+        new_users_df.to_csv(f"{STAGING_PATH}/users_clean.csv", index=False)
+        print(f"[INFO] Extracted {len(new_users_df)} orders")
     else:
         print("[WARN] No new valid users.")
 
@@ -74,6 +82,7 @@ def extract_new_orders():
     )
 
     if not new_orders_df.empty:
+        new_orders_df.to_csv(f"{STAGING_PATH}/orders_clean.csv", index=False)
         print(f"[INFO] {len(new_orders_df)} new orders extracted.")
     else:
         print("[WARN] No new valid orders.")
@@ -87,6 +96,7 @@ def extract_all_products():
     )
 
     if not products_df.empty:
+        products_df.to_csv(f"{STAGING_PATH}/products_clean.csv", index=False)
         print(f"[INFO] {len(products_df)} products extracted.")
         print(products_df)
     else:
