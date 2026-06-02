@@ -1,3 +1,6 @@
+import sys
+sys.path.append('/opt/scripts')
+
 import json
 import logging
 import time 
@@ -7,6 +10,8 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.mongo.hooks.mongo import MongoHook
 from datetime import datetime
 from airflow.sensors.python import PythonSensor
+
+from json_transformation import parse_datetime
 
 
 default_args = {
@@ -56,13 +61,21 @@ def load_behavioral_to_mongo(**kwargs):
 
     if not is_file_complete(file_path):
         raise ValueError(f"File {file_path} is still being transferred or incomplete.")
+    
 
     try:
         data = []
         with open(file_path, 'r', encoding='utf-8') as f:
             for line in f:
                 if line.strip():
-                    data.append(json.loads(line))
+                    doc = json.loads(line)
+
+                    if "timestamp" in doc:
+                        doc["timestamp"] = parse_datetime(doc["timestamp"])
+
+                    if "transformed_at" in doc:
+                        doc["transformed_at"] = parse_datetime(doc["transformed_at"])
+                    data.append(doc)
         
         if not data:
             logging.info("No Data To Load")
@@ -86,7 +99,7 @@ with DAG(
     'load_behavioral_to_mongo',
     default_args=default_args,
     description='Load behavioral data into MongoDB',
-    schedule_interval='*/1 * * * *',  # هر 1 دقیقه یکبار اجرا شود
+    schedule='*/1 * * * *',  # هر 1 دقیقه یکبار اجرا شود
     catchup=False,
     tags=['mongodb', 'etl', 'load']
 ) as dag:
