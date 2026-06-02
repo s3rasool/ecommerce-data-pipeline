@@ -1,2 +1,0 @@
-{"timestamp": "2026-06-02T10:00:00Z", "user_id": "U999", "event_type": "page_view", "session_id": "S999", "device": "desktop", "url_path": "/test", "duration_sec": 10, "http_status": 200}
-{"timestamp": "2026-06-02T10:01:00Z", "user_id": "U999", "event_type": "product_search", "session_id": "S999", "device": "desktop", "query": "laptop", "results_count": 15, "clicked_position": 2}
