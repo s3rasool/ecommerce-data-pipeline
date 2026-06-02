@@ -102,7 +102,7 @@ with DAG(
     dag_id="wait_for_csv_file_changes",
     default_args=default_args,
     start_date=datetime(2024, 1, 1),
-    schedule="@daily",
+    schedule='*/10 * * * *',
     catchup=False,
     tags=["csv", "tracker", "extractor"],
 ) as dag:
