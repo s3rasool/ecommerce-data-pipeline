@@ -11,7 +11,7 @@ from airflow.providers.mongo.hooks.mongo import MongoHook
 from datetime import datetime
 from airflow.sensors.python import PythonSensor
 
-from json_transformation import parse_datetime
+from json_transformation import parse_timestamp
 
 
 default_args = {
@@ -71,10 +71,10 @@ def load_behavioral_to_mongo(**kwargs):
                     doc = json.loads(line)
 
                     if "timestamp" in doc:
-                        doc["timestamp"] = parse_datetime(doc["timestamp"])
+                        doc["timestamp"] = parse_timestamp(doc["timestamp"])
 
                     if "transformed_at" in doc:
-                        doc["transformed_at"] = parse_datetime(doc["transformed_at"])
+                        doc["transformed_at"] = parse_timestamp(doc["transformed_at"])
                     data.append(doc)
         
         if not data:
