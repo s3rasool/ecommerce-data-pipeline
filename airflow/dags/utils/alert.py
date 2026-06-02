@@ -1,7 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 from airflow.utils.email import send_email
-from settings import EMAILS, INCIDENT_REPORT_FILE
+from utils.settings import EMAILS, INCIDENT_REPORT_FILE
 
 
 def save_incident(
