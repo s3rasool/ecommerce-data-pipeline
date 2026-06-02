@@ -63,9 +63,9 @@ db.createCollection('events', {
    }
 });
 
-db.behavioral_events.createIndex({ "user_id": 1, "timestamp": -1 });
-db.behavioral_events.createIndex({ "session_id": 1, "timestamp": 1 });
-db.behavioral_events.createIndex({ "event_type": 1, "timestamp": -1 });
-db.behavioral_events.createIndex({ "timestamp": -1 });
+db.events.createIndex({ "user_id": 1, "timestamp": -1 });
+db.events.createIndex({ "session_id": 1, "timestamp": 1 });
+db.events.createIndex({ "event_type": 1, "timestamp": -1 });
+db.events.createIndex({ "timestamp": -1 });
 
 print("MongoDB initialized successfully!");
