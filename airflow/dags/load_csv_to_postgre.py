@@ -1,10 +1,12 @@
+import sys
+import pandas as pd
+from airflow.sensors.python import PythonSensor
 import logging
 import time
 import os
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.sensors.filesystem import FileSensor
 from datetime import datetime
 
 default_args = {
@@ -28,8 +30,7 @@ def load_csv_to_postgres(table_name, file_path, columns, conflict_column=None, *
         raise ValueError(f"File {file_path} is still being transferred or incomplete.")
     
     #use-pg_hook
-    pg_hook = PostgresHook(postgres_conn_id='postgres_default')
-    
+    pg_hook = PostgresHook(postgres_conn_id='postgres')    
     column_names = ','.join(columns)
     
     #HEADER true
@@ -50,7 +51,7 @@ def load_csv_to_postgres(table_name, file_path, columns, conflict_column=None, *
 def load_users(**kwargs):
     return load_csv_to_postgres(
         table_name='users',
-        file_path='/tmp/users.csv',  #Confirm path
+        file_path='/opt/airflow/data/users.csv',
         columns=['user_id', 'name', 'email', 'signup_date', 'device', 'loyalty_tier', 'location'],
         conflict_column='user_id'
     )
@@ -58,16 +59,15 @@ def load_users(**kwargs):
 def load_products(**kwargs):
     return load_csv_to_postgres(
         table_name='products',
-        file_path='/tmp/products.csv',  #Confirm path
+        file_path='/opt/airflow/data/products.csv',
         columns=['product_id', 'name', 'price', 'category', 'inventory', 'popularity_score'],
         conflict_column='product_id'
     )
 
-
 def load_orders(**kwargs):
     return load_csv_to_postgres(
         table_name='orders',
-        file_path='/tmp/orders.csv',  #Confirm path
+        file_path='/opt/airflow/data/orders.csv',
         columns=['order_id', 'user_id', 'timestamp', 'total', 'status', 'payment_method'],
         conflict_column='order_id'
     )
@@ -80,29 +80,32 @@ with DAG(
     catchup=False,
     tags=['postgresql', 'etl', 'load']
 ) as dag:
-
-    wait_for_users = FileSensor(
+    wait_for_users = PythonSensor(
         task_id='wait_for_users_file',
-        filepath='/tmp/users.csv',  #confirm path 
-        poke_interval=30,        
-        timeout=3600,            #1 houre 
-        mode='poke'
-    )
-    wait_for_products = FileSensor(
-        task_id='wait_for_products_file',
-        filepath='/tmp/products.csv',  #confirm path 
+        python_callable=is_file_complete,
+        op_kwargs={'file_path': '/opt/airflow/data/users.csv'},
         poke_interval=30,
-        timeout=3600,           #1 houre 
-        mode='poke'
-    )
-    wait_for_orders = FileSensor(
-        task_id='wait_for_orders_file',
-        filepath='/tmp/orders.csv',  #confirm path 
-        poke_interval=30,
-        timeout=3600,           #1 houre 
+        timeout=3600,
         mode='poke'
     )
 
+    wait_for_products = PythonSensor(
+        task_id='wait_for_products_file',
+        python_callable=is_file_complete,
+        op_kwargs={'file_path': '/opt/airflow/data/products.csv'},
+        poke_interval=30,
+        timeout=3600,
+        mode='poke'
+    )
+
+    wait_for_orders = PythonSensor(
+        task_id='wait_for_orders_file',
+        python_callable=is_file_complete,
+        op_kwargs={'file_path': '/opt/airflow/data/orders.csv'},
+        poke_interval=30,
+        timeout=3600,
+        mode='poke'
+    )
     load_users_task = PythonOperator(
         task_id='load_users',
         python_callable=load_users
@@ -121,3 +124,5 @@ with DAG(
     wait_for_users >> load_users_task
     wait_for_products >> load_products_task
     wait_for_orders >> load_orders_task
+    
+    load_users_task >> load_orders_task
