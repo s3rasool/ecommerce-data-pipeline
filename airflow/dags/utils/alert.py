@@ -11,7 +11,7 @@ def save_incident(
     exception,
 ):
     message = (
-        f"{datetime.utcnow():%Y-%m-%d %H:%M:%S}\t"
+        f"{datetime.now():%Y-%m-%d %H:%M:%S}\t"
         f"Task {task_id} in DAG {dag_id} "
         f"with execution date: {execution_date} "
         f"failed caused by {exception}\n\n"
