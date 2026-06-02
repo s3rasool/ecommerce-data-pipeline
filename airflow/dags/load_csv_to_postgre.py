@@ -76,7 +76,7 @@ with DAG(
     'load_transitional_to_postgres',
     default_args=default_args,
     description='Load transitional data (users, products, orders) into PostgreSQL',
-    schedule_interval=None,
+    schedule=None,
     catchup=False,
     tags=['postgresql', 'etl', 'load']
 ) as dag:
