@@ -198,7 +198,7 @@ services:
       POSTGRES_PASSWORD: airflow
       POSTGRES_DB: airflow
     volumes:
-      - postgres-airflow-db-volume:/var/lib/postgresql-airflow/data
+      - postgres-airflow-db-volume:/var/lib/postgresql/data
     networks:
       - airflow_network
     healthcheck:

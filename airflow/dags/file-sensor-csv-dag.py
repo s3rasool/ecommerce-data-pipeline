@@ -5,14 +5,16 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 from airflow import DAG
-from airflow.operators.python import PythonOperator, ShortCircuitOperator
-from airflow.models import Variable
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.providers.standard.operators.python import ShortCircuitOperator
+
+from airflow.sdk import Variable
 
 from csv_extraction import extract_users, extract_orders, extract_products
 
 
 def track_csv_file(file_path: str, variable_key: str):
-    last_processed_count = int(Variable.get(variable_key, default_var=0))
+    last_processed_count = int(Variable.get(variable_key, default="0"))
 
     try:
         new_df = pd.read_csv(
@@ -24,7 +26,7 @@ def track_csv_file(file_path: str, variable_key: str):
         return False
 
     if new_df.empty:
-        print(f"[INFO] No new rows in {file_path}")
+        print(f"[WARN] No new rows in {file_path}")
         return False
 
     print(f"[INFO] Found {len(new_df)} new raw rows in {file_path}")
@@ -48,7 +50,7 @@ def track_users_changes():
 
 
 def extract_new_users():
-    last_row = int(Variable.get("users_csv_last_row", default_var=0))
+    last_row = int(Variable.get("users_csv_last_row", default="0"))
 
     new_users_df, new_last_row = extract_users(
         file_path="/opt/airflow/data/users.csv",
@@ -58,13 +60,13 @@ def extract_new_users():
     if not new_users_df.empty:
         print(f"[INFO] {len(new_users_df)} new users extracted.")
     else:
-        print("[INFO] No new valid users.")
+        print("[WARN] No new valid users.")
 
-    Variable.set("[INFO] users_csv_last_row", new_last_row)
+    Variable.set("users_csv_last_row", str(new_last_row))
 
 
 def extract_new_orders():
-    last_row = int(Variable.get("orders_csv_last_row", default_var=0))
+    last_row = int(Variable.get("orders_csv_last_row", default="0"))
 
     new_orders_df, new_last_row = extract_orders(
         file_path="/opt/airflow/data/orders.csv",
@@ -74,9 +76,9 @@ def extract_new_orders():
     if not new_orders_df.empty:
         print(f"[INFO] {len(new_orders_df)} new orders extracted.")
     else:
-        print("[INFO] No new valid orders.")
+        print("[WARN] No new valid orders.")
 
-    Variable.set("orders_csv_last_row", new_last_row)
+    Variable.set("orders_csv_last_row", str(new_last_row))
 
 
 def extract_all_products():
@@ -88,7 +90,7 @@ def extract_all_products():
         print(f"[INFO] {len(products_df)} products extracted.")
         print(products_df)
     else:
-        print("[INFO] No products available.")
+        print("[WARN] No products available.")
 
 
 default_args = {
