@@ -35,7 +35,7 @@ def extract_users(file_path, last_processed_count=0):
     df = df.drop_duplicates(subset=['user_id'])
     
     new_count = last_processed_count + raw_new_rows
-    return df, new_count
+    return df, str(new_count)
 
 
 def extract_orders(file_path, last_processed_count=0):
@@ -71,7 +71,7 @@ def extract_orders(file_path, last_processed_count=0):
     df = df.drop_duplicates(subset=['order_id'])
     
     new_count = last_processed_count + raw_new_rows
-    return df, new_count
+    return df, str(new_count)
 
 
 def extract_products(file_path):
