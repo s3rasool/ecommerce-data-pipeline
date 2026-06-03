@@ -8,15 +8,10 @@ import pandas as pd
 from airflow import DAG
 from airflow.providers.standard.operators.python import PythonOperator
 from airflow.providers.standard.operators.python import ShortCircuitOperator
+from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
 
 from airflow.sdk import Variable
 
-from csv_extraction import extract_users, extract_orders, extract_products
-
-
-STAGING_PATH = "/opt/airflow/data/staging"
-
-os.makedirs(STAGING_PATH, exist_ok=True)
 
 
 def track_csv_file(file_path: str, variable_key: str):
@@ -55,52 +50,16 @@ def track_users_changes():
     )
 
 
-def extract_new_users():
-    last_row = int(Variable.get("users_csv_last_row", default="0"))
+def track_any_csv_changes():
+    users_changed = track_users_changes()
+    orders_changed = track_orders_changes()
 
-    new_users_df, new_last_row = extract_users(
-        file_path="/opt/airflow/data/users.csv",
-        last_processed_count=last_row
-    )
+    if users_changed or orders_changed:
+        print("[INFO] At least one CSV file has new rows. Triggering load DAG.")
+        return True
 
-
-    if not new_users_df.empty:
-        new_users_df.to_csv(f"{STAGING_PATH}/users_clean.csv", index=False)
-        print(f"[INFO] Extracted {len(new_users_df)} orders")
-    else:
-        print("[WARN] No new valid users.")
-
-    Variable.set("users_csv_last_row", str(new_last_row))
-
-
-def extract_new_orders():
-    last_row = int(Variable.get("orders_csv_last_row", default="0"))
-
-    new_orders_df, new_last_row = extract_orders(
-        file_path="/opt/airflow/data/orders.csv",
-        last_processed_count=last_row
-    )
-
-    if not new_orders_df.empty:
-        new_orders_df.to_csv(f"{STAGING_PATH}/orders_clean.csv", index=False)
-        print(f"[INFO] {len(new_orders_df)} new orders extracted.")
-    else:
-        print("[WARN] No new valid orders.")
-
-    Variable.set("orders_csv_last_row", str(new_last_row))
-
-
-def extract_all_products():
-    products_df = extract_products(
-        file_path="/opt/airflow/data/products.csv"
-    )
-
-    if not products_df.empty:
-        products_df.to_csv(f"{STAGING_PATH}/products_clean.csv", index=False)
-        print(f"[INFO] {len(products_df)} products extracted.")
-        print(products_df)
-    else:
-        print("[WARN] No products available.")
+    print("[WARN] No new rows found in users.csv or orders.csv.")
+    return False
 
 
 default_args = {
@@ -114,35 +73,24 @@ with DAG(
     dag_id="wait_for_csv_file_changes",
     default_args=default_args,
     start_date=datetime(2024, 1, 1),
-    schedule='*/10 * * * *',
+    schedule="*/10 * * * *",
     catchup=False,
     tags=["csv", "tracker", "extractor"],
 ) as dag:
 
-    track_users_task = ShortCircuitOperator(
-        task_id="track_users_changes",
-        python_callable=track_users_changes,
+    track_any_changes_task = ShortCircuitOperator(
+        task_id="track_any_csv_changes",
+        python_callable=track_any_csv_changes,
     )
 
-    extract_users_task = PythonOperator(
-        task_id="extract_new_users",
-        python_callable=extract_new_users,
+    trigger_load_to_postgres_dag = TriggerDagRunOperator(
+        task_id="trigger_load_transitional_to_postgres",
+        trigger_dag_id="load_transitional_to_postgres",
+        wait_for_completion=False,
+        reset_dag_run=False,
+        conf={
+            "triggered_by": "wait_for_csv_file_changes"
+        },
     )
 
-    track_orders_task = ShortCircuitOperator(
-        task_id="track_orders_changes",
-        python_callable=track_orders_changes,
-    )
-
-    extract_orders_task = PythonOperator(
-        task_id="extract_new_orders",
-        python_callable=extract_new_orders,
-    )
-
-    extract_products_task = PythonOperator(
-        task_id="extract_all_products",
-        python_callable=extract_all_products,
-    )
-
-    track_users_task >> extract_users_task
-    track_orders_task >> extract_orders_task
+    track_any_changes_task >> trigger_load_to_postgres_dag
