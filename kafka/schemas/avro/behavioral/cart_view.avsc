@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "CartView",
+  "namespace": "behavioral",
+  "fields": [
+    {"name": "timestamp", "type": {"type": "long", "logicalType": "timestamp-micros"}},
+    {"name": "user_id", "type": "string"},
+    {"name": "event_type", "type": "string"},
+    {"name": "device", "type": "string"},
+    {"name": "session_id", "type": "string"},
+    {"name": "cart_items", "type": "string"},
+    {"name": "cart_value", "type": "double"}
+  ]
+}

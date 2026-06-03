@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "Product",
+  "namespace": "transactional",
+  "fields": [
+    {"name": "product_id", "type": "string"},
+    {"name": "name", "type": "string"},
+    {"name": "price", "type": {"type": "bytes", "logicalType": "decimal", "precision": 10, "scale": 2}},
+    {"name": "category", "type": ["null", "string"], "default": null},
+    {"name": "inventory", "type": ["null", "int"], "default": null},
+    {"name": "popularity_score", "type": ["null", {"type": "bytes", "logicalType": "decimal", "precision": 4, "scale": 2}], "default": null}
+  ]
+}
