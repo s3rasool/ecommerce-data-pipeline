@@ -1,3 +1,5 @@
+CREATE DATABASE IF NOT EXISTS raw;
+
 -- Kafka tables
 CREATE TABLE
     IF NOT EXISTS transformed.kafka_users (
@@ -9,11 +11,10 @@ CREATE TABLE
         loyalty_tier String,
         location String
     ) ENGINE = Kafka SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
-    -- change topic name to what it is in kafka later added
-    kafka_topic_list = 'users_topic',
+    kafka_topic_list = 'ecommerce.users.ingest',
     kafka_group_name = 'clickhouse_users_consumer_group',
     kafka_format = 'Avro',
-    -- change the consumers count later in kafka added
+    -- change the consumers count later when kafka added
     kafka_num_consumers = 2,
     kafka_thread_per_consumer = 1,
     kafka_auto_offset_reset = 'earliest';
@@ -27,11 +28,10 @@ CREATE TABLE
         inventory UInt32,
         popularity_score Float64
     ) ENGINE = Kafka SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
-    -- change topic name to what it is in kafka later added
-    kafka_topic_list = 'products_topic',
+    kafka_topic_list = 'ecommerce.products.ingest',
     kafka_group_name = 'clickhouse_products_consumer_group',
     kafka_format = 'Avro',
-    -- change the consumers count later in kafka added
+    -- change the consumers count later when kafka added
     kafka_num_consumers = 2,
     kafka_thread_per_consumer = 1,
     kafka_auto_offset_reset = 'earliest';
@@ -45,11 +45,10 @@ CREATE TABLE
         status String,
         payment_method String
     ) ENGINE = Kafka SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
-    -- change topic name to what it is in kafka later added
-    kafka_topic_list = 'orders_topic',
+    kafka_topic_list = 'ecommerce.orders.ingest',
     kafka_group_name = 'clickhouse_orders_consumer_group',
     kafka_format = 'Avro',
-    -- change the consumers count later in kafka added
+    -- change the consumers count later when kafka added
     kafka_num_consumers = 2,
     kafka_thread_per_consumer = 1,
     kafka_auto_offset_reset = 'earliest';
@@ -66,7 +65,7 @@ CREATE TABLE
         page_url String,
         device String
     ) ENGINE = Kafka SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
-    kafka_topic_list = 'behavioral_events_topic',
+    kafka_topic_list = 'ecommerce.events.ingest',
     kafka_group_name = 'clickhouse_behavioral_events_consumer_group',
     kafka_format = 'Avro',
     kafka_num_consumers = 2,
