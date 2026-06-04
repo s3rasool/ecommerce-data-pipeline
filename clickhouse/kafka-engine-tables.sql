@@ -1,4 +1,4 @@
-CREATE DATABASE IF NOT EXISTS raw;
+CREATE DATABASE IF NOT EXISTS transformed;
 
 -- Kafka tables
 CREATE TABLE
@@ -13,7 +13,7 @@ CREATE TABLE
     ) ENGINE = Kafka SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
     kafka_topic_list = 'ecommerce.users.ingest',
     kafka_group_name = 'clickhouse_users_consumer_group',
-    kafka_format = 'Avro',
+    kafka_format = 'AvroConfluent',
     -- change the consumers count later when kafka added
     kafka_num_consumers = 2,
     kafka_thread_per_consumer = 1,
@@ -30,7 +30,7 @@ CREATE TABLE
     ) ENGINE = Kafka SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
     kafka_topic_list = 'ecommerce.products.ingest',
     kafka_group_name = 'clickhouse_products_consumer_group',
-    kafka_format = 'Avro',
+    kafka_format = 'AvroConfluent',
     -- change the consumers count later when kafka added
     kafka_num_consumers = 2,
     kafka_thread_per_consumer = 1,
@@ -47,27 +47,23 @@ CREATE TABLE
     ) ENGINE = Kafka SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
     kafka_topic_list = 'ecommerce.orders.ingest',
     kafka_group_name = 'clickhouse_orders_consumer_group',
-    kafka_format = 'Avro',
+    kafka_format = 'AvroConfluent',
     -- change the consumers count later when kafka added
     kafka_num_consumers = 2,
     kafka_thread_per_consumer = 1,
     kafka_auto_offset_reset = 'earliest';
 
--- change the fields based on the schema registry
-CREATE TABLE
-    IF NOT EXISTS transformed.kafka_behavioral_events (
-        event_id UInt64,
-        user_id UInt64,
-        event_type String,
-        event_timestamp DateTime,
-        session_id String,
-        product_id Nullable (UInt64),
-        page_url String,
-        device String
-    ) ENGINE = Kafka SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
+
+CREATE TABLE IF NOT EXISTS transformed.behavioral_events_raw
+(
+    raw String
+)
+ENGINE = Kafka
+SETTINGS
+    kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
     kafka_topic_list = 'ecommerce.events.ingest',
     kafka_group_name = 'clickhouse_behavioral_events_consumer_group',
-    kafka_format = 'Avro',
+    kafka_format = 'AvroConfluent',
     kafka_num_consumers = 2,
     kafka_thread_per_consumer = 1,
     kafka_auto_offset_reset = 'earliest';
