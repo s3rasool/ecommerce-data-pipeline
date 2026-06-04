@@ -52,5 +52,3 @@ class EventProducer:
         self.producer.flush()
         print("Producer finished.\n")
 
-if __name__ == "__main__":
-    EventProducer().run()
