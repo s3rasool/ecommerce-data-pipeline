@@ -1,0 +1,15 @@
+{
+  "type": "record",
+  "name": "ProductSearch",
+  "namespace": "behavioral",
+  "fields": [
+    {"name": "timestamp", "type": {"type": "long", "logicalType": "timestamp-micros"}},
+    {"name": "user_id", "type": "string"},
+    {"name": "event_type", "type": "string"},
+    {"name": "device", "type": "string"},
+    {"name": "session_id", "type": "string"},
+    {"name": "query", "type": "string"},
+    {"name": "results_count", "type": "int"},
+    {"name": "clicked_position", "type": ["null", "int"], "default": null}
+  ]
+}

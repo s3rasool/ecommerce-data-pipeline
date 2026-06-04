@@ -180,7 +180,26 @@ services:
       - kafka3
     networks:
       - kafka_network
-        
+
+  schema-registry-init:
+    image: python:3.10-alpine
+    container_name: schema-registry-init
+    restart: "no"
+    depends_on:
+      - schema-registry
+    networks:
+      - kafka_network
+    environment:
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      SCHEMA_DIR: /schemas
+    volumes:
+      - ./kafka/register_schemas.sh:/register_schemas.sh:ro
+      - ./kafka/schemas/avro:/schemas:ro
+    command: >
+      /bin/sh -c "
+        apk add --no-cache curl bash jq &&
+        bash /register_schemas.sh
+      "
   kafbatui:
     container_name: kafka-ui
     image: ${REGISTRY}/kafbat/kafka-ui:v1.5.0
@@ -347,12 +366,12 @@ services:
     # yamllint enable rule:line-length
     environment:
       <<: *airflow-common-env
-      AIRFLOW_UID: "${AIRFLOW_UID:-1000}"  
+      AIRFLOW_UID: "${AIRFLOW_UID:-1000}"
       _AIRFLOW_DB_MIGRATE: 'true'
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
       _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
-      _PIP_ADDITIONAL_REQUIREMENTS: ''
+      _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
     user: "0:0"
 
   airflow-cli:
