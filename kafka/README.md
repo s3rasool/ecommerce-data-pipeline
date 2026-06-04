@@ -15,6 +15,10 @@ Topics follow the pattern: `<namespace>.<entity>.<operation>`
 | `ecommerce.products.ingest` | Products | ingest | Product catalog updates (full reload) | CSV |
 | `ecommerce.orders.ingest` | Orders | ingest | New orders | CSV |
 | `ecommerce.events.ingest` | Events | ingest | User behavioral events | JSON |
+| `ecommerce.users.migrate` | Users | migrate | Users extracted from PostgreSQL | PostgreSQL |
+| `ecommerce.products.migrate` | Products | migrate | Products extracted from PostgreSQL | PostgreSQL |
+| `ecommerce.orders.migrate` | Orders | migrate | Orders extracted from PostgreSQL | PostgreSQL |
+| `ecommerce.events.migrate` | Events | migrate | Events extracted from MongoDB | MongoDB |
 
 ### Naming Breakdown
 
@@ -22,5 +26,4 @@ Topics follow the pattern: `<namespace>.<entity>.<operation>`
 |------|-------------|---------|
 | `ecommerce` | Project namespace | Prevents collisions with other projects |
 | `users` / `products` / `orders` / `events` | Data entity | What the data represents |
-| `ingest` | Operation | Data being brought into the system |
-
+| `ingest` / `migrate` | Operation | `ingest` = raw data into system, `migrate` = extracted for downstream |
