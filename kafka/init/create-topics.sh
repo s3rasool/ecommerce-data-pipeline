@@ -11,6 +11,10 @@ TOPICS=(
   "ecommerce.products.ingest"
   "ecommerce.orders.ingest"
   "ecommerce.events.ingest"
+  "ecommerce.users.migrate"
+  "ecommerce.products.migrate"
+  "ecommerce.orders.migrate"
+  "ecommerce.events.migrate"
 )
 
 for topic in "${TOPICS[@]}"; do
