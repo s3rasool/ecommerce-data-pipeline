@@ -1,10 +1,9 @@
 #!/bin/bash
 
 SCHEMA_DIR="$(dirname "$0")/schemas/avro"
-SCHEMA_REGISTRY_URL="http://schema-registry:8081" # نام سرویس Schema Registry در داکر کامپوز
+SCHEMA_REGISTRY_URL="http://localhost:8081"
 
 echo "Waiting for Schema Registry to be ready..."
-# حلقه انتظار برای بالا آمدن کامل Schema Registry
 while ! curl -s "$SCHEMA_REGISTRY_URL" > /dev/null; do
   echo "Schema Registry is not ready yet. Waiting..."
   sleep 5
@@ -12,7 +11,10 @@ done
 
 echo "Registering schemas..."
 
-# transactional
+###############################################
+# 1) TRANSACTIONAL SCHEMAS
+###############################################
+
 declare -A TRANSACTIONAL_TOPICS=(
     ["user"]="ecommerce.users.ingest"
     ["product"]="ecommerce.products.ingest"
@@ -22,26 +24,38 @@ declare -A TRANSACTIONAL_TOPICS=(
 for schema_name in "${!TRANSACTIONAL_TOPICS[@]}"; do
     topic="${TRANSACTIONAL_TOPICS[$schema_name]}"
     file="$SCHEMA_DIR/transactional/$schema_name.avsc"
-    # تبدیل فایل به استرینگ JSON با پایتون
+
+    echo "Registering transactional schema: $file → subject: $topic-value"
+
     schema=$(cat "$file" | python3 -c "import json,sys; print(json.dumps(json.dumps(json.load(sys.stdin))))")
-    
-    curl -s -X POST \
+
+    response=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST \
         -H "Content-Type: application/vnd.schemaregistry.v1+json" \
         -d "{\"schema\": $schema}" \
-        "$SCHEMA_REGISTRY_URL/subjects/$topic-value/versions"
-    echo " -> registered: $topic"
+        "$SCHEMA_REGISTRY_URL/subjects/$topic-value/versions")
+
+    echo "$response"
 done
 
-# behavioral
-for file in "$SCHEMA_DIR"/behavioral/*.avsc; do
-    topic="ecommerce.events.ingest"
+
+###############################################
+# 2) BEHAVIORAL SCHEMAS — FIXED
+###############################################
+
+for file in "$SCHEMA_DIR/behavioral"/*.avsc; do
+    event_name=$(basename "$file" .avsc)
+    subject="ecommerce.events.$event_name-value"
+
+    echo "Registering behavioral schema: $file → subject: $subject"
+
     schema=$(cat "$file" | python3 -c "import json,sys; print(json.dumps(json.dumps(json.load(sys.stdin))))")
-    
-    curl -s -X POST \
+
+    response=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST \
         -H "Content-Type: application/vnd.schemaregistry.v1+json" \
         -d "{\"schema\": $schema}" \
-        "$SCHEMA_REGISTRY_URL/subjects/$topic-value/versions"
-    echo " -> registered: $(basename $file .avsc) under $topic"
+        "$SCHEMA_REGISTRY_URL/subjects/$subject/versions")
+
+    echo "$response"
 done
 
-echo "Done!"
+echo "Schema registration complete."

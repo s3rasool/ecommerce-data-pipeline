@@ -189,16 +189,17 @@ services:
       - schema-registry
     networks:
       - kafka_network
+    environment:
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      SCHEMA_DIR: /schemas
     volumes:
-      - ./kafka/register_schemas.sh:/register_schemas.sh
-      - ./kafka/schemas:/schemas
+      - ./kafka/register_schemas.sh:/register_schemas.sh:ro
+      - ./kafka/schemas/avro:/schemas:ro
     command: >
       /bin/sh -c "
-        apk add --no-cache curl bash &&
-        chmod +x /register_schemas.sh &&
-        /register_schemas.sh
+        apk add --no-cache curl bash jq &&
+        bash /register_schemas.sh
       "
-
   kafbatui:
     container_name: kafka-ui
     image: ${REGISTRY}/kafbat/kafka-ui:v1.5.0
