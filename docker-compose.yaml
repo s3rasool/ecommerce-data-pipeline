@@ -227,27 +227,6 @@ services:
       - "traefik.http.services.kafka-ui.loadbalancer.server.port=8080"
       - "traefik.docker.network=traefik_traefik_network"
 
-  behavioral-producer:
-    build:
-      context: ./kafka/behavioral-producer
-      dockerfile: Dockerfile
-    env_file:
-      - ${ENV_FILE_PATH:-.env.example}
-    depends_on:
-      - kafka1
-      - kafka2
-      - kafka3
-      - schema-registry
-      - mongodb
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka1:9092,kafka2:9092,kafka3:9092
-      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - MONGO_URI=mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongodb:27017/?authSource=admin
-    restart: on-failure
-    networks:
-      - mongo_network
-      - kafka_network
-
   postgres-airflow:
     image: ${REGISTRY}/postgres:16
     container_name: postgres-airflow
