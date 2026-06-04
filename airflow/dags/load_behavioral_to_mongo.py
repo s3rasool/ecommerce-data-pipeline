@@ -10,6 +10,7 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.mongo.hooks.mongo import MongoHook
 from datetime import datetime
 from airflow.sensors.python import PythonSensor
+from airflow.models import Variable
 
 from json_transformation import parse_timestamp
 
@@ -88,12 +89,38 @@ def load_behavioral_to_mongo(**kwargs):
         
         result = collection.insert_many(data)
         logging.info(f"Successfully inserted {len(result.inserted_ids)} records into MongoDB.")
-        return f"Inserted {len(result.inserted_ids)} records"
+        return data
     
     except Exception as e:
         logging.error(f"Error loading data into MongoDB: {e}")
         raise
 
+def produce_behavioural_data(**kwargs):
+    is_bootstrap_done = Variable.get(
+        "bootstrap_mongo_read_done",
+        default_var=False,
+    )
+
+    if is_bootstrap_done:
+        ti = kwargs['ti']
+        data = ti.xcom_pull(task_ids='load_behavioral_data')
+        if not data:
+            logging.info("No data received from load task.\n Skipping Kafka stream.")
+            return "No data to stream"
+
+        return f"data: {data} produced"
+    else:
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(PROJECT_ROOT)
+            
+            from app.producer import EventProducer
+            from app.config import TOPIC
+            
+            EventProducer().run()
+            return "Data produced!"
+        finally:
+            os.chdir(old_cwd)
 
 with DAG(
     'load_behavioral_to_mongo',
@@ -116,5 +143,10 @@ with DAG(
         task_id='load_behavioral_data',
         python_callable=load_behavioral_to_mongo
     )
+
+    kafka_task = PythonOperator(
+        task_id='produce_behavioural_data',
+        python_callable=produce_behavioural_data
+    )
     
-    wait_for_file >> load_task
+    wait_for_file >> load_task >> kafka_task
