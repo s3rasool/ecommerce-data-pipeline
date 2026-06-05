@@ -4,7 +4,7 @@ CREATE SCHEMA IF NOT EXISTS raw;
 CREATE TABLE IF NOT EXISTS raw.users (
     user_id VARCHAR(20) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL UNIQUE,
+    email VARCHAR(255) NOT NULL,
     signup_date DATE NOT NULL,
     device VARCHAR(50),
     loyalty_tier VARCHAR(50),
