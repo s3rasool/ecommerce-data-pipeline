@@ -162,9 +162,10 @@ with DAG(
     "load_behavioral_to_mongo",
     default_args=default_args,
     description="Load behavioral data into MongoDB and publish unproduced Mongo documents to Kafka",
-    schedule="*/1 * * * *",
+    schedule="*/10 * * * *",
     catchup=False,
     tags=["mongodb", "etl", "load", "kafka"],
+    max_active_runs=1,
 ) as dag:
 
     wait_for_file = PythonSensor(
