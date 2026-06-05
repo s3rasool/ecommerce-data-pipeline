@@ -14,8 +14,7 @@ CREATE TABLE
     kafka_topic_list = 'ecommerce.users.ingest',
     kafka_group_name = 'clickhouse_users_consumer_group',
     kafka_format = 'AvroConfluent',
-    -- change the consumers count later when kafka added
-    kafka_num_consumers = 2,
+    kafka_num_consumers = 1,
     kafka_thread_per_consumer = 1,
     kafka_auto_offset_reset = 'earliest';
 
@@ -31,8 +30,7 @@ CREATE TABLE
     kafka_topic_list = 'ecommerce.products.ingest',
     kafka_group_name = 'clickhouse_products_consumer_group',
     kafka_format = 'AvroConfluent',
-    -- change the consumers count later when kafka added
-    kafka_num_consumers = 2,
+    kafka_num_consumers = 1,
     kafka_thread_per_consumer = 1,
     kafka_auto_offset_reset = 'earliest';
 
@@ -48,8 +46,7 @@ CREATE TABLE
     kafka_topic_list = 'ecommerce.orders.ingest',
     kafka_group_name = 'clickhouse_orders_consumer_group',
     kafka_format = 'AvroConfluent',
-    -- change the consumers count later when kafka added
-    kafka_num_consumers = 2,
+    kafka_num_consumers = 1,
     kafka_thread_per_consumer = 1,
     kafka_auto_offset_reset = 'earliest';
 
@@ -64,7 +61,7 @@ SETTINGS
     kafka_topic_list = 'ecommerce.events.ingest',
     kafka_group_name = 'clickhouse_behavioral_events_consumer_group',
     kafka_format = 'AvroConfluent',
-    kafka_num_consumers = 2,
+    kafka_num_consumers = 1,
     kafka_thread_per_consumer = 1,
     kafka_auto_offset_reset = 'earliest';
 
