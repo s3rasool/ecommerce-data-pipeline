@@ -42,9 +42,11 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/docker-init.sh:/opt/airflow/docker-init.sh
     - ${AIRFLOW_PROJ_DIR:-.}/scripts:/opt/scripts
     - ${PROJ_DATA_DIR}:/opt/airflow/data
+    - ${KAFKA_DIR}/schemas:/opt/airflow/schema
   user: "${AIRFLOW_UID:-1000}:0"
   networks:
     - airflow_network
+    - kafka_network
   depends_on:
     &airflow-common-depends-on
     redis:
@@ -226,7 +228,6 @@ services:
       - "traefik.http.routers.kafka-ui.entrypoints=web"
       - "traefik.http.services.kafka-ui.loadbalancer.server.port=8080"
       - "traefik.docker.network=traefik_traefik_network"
-
 
   postgres-airflow:
     image: ${REGISTRY}/postgres:16
