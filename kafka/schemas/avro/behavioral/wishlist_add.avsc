@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "WishlistAdd",
+  "namespace": "behavioral",
+  "fields": [
+    {"name": "timestamp", "type": {"type": "long", "logicalType": "timestamp-micros"}},
+    {"name": "user_id", "type": "string"},
+    {"name": "event_type", "type": "string"},
+    {"name": "device", "type": "string"},
+    {"name": "session_id", "type": "string"},
+    {"name": "product_id", "type": "string"},
+    {"name": "wishlist_name", "type": ["null", "string"], "default": null}
+  ]
+}

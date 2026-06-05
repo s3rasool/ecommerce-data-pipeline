@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "Order",
+  "namespace": "transactional",
+  "fields": [
+    {"name": "order_id", "type": "string"},
+    {"name": "user_id", "type": "string"},
+    {"name": "timestamp", "type": {"type": "long", "logicalType": "timestamp-micros"}},
+    {"name": "total", "type": {"type": "bytes", "logicalType": "decimal", "precision": 10, "scale": 2}},
+    {"name": "status", "type": "string"},
+    {"name": "payment_method", "type": ["null", "string"], "default": null}
+  ]
+}

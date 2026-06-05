@@ -1,0 +1,15 @@
+{
+  "type": "record",
+  "name": "RemoveFromCart",
+  "namespace": "behavioral",
+  "fields": [
+    {"name": "timestamp", "type": {"type": "long", "logicalType": "timestamp-micros"}},
+    {"name": "user_id", "type": "string"},
+    {"name": "event_type", "type": "string"},
+    {"name": "device", "type": "string"},
+    {"name": "session_id", "type": "string"},
+    {"name": "product_id", "type": "string"},
+    {"name": "quantity", "type": "int"},
+    {"name": "cart_total_items", "type": "int"}
+  ]
+}

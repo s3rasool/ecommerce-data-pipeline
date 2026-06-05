@@ -26,9 +26,11 @@ x-airflow-common:
     # WARNING: Use _PIP_ADDITIONAL_REQUIREMENTS option ONLY for a quick checks
     # for other purpose (development, test and especially production usage) build/extend Airflow image.
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
+    PIP_INDEX_URL: https://pypi.devneeds.ir/simple/
+    PIP_TRUSTED_HOST: pypi.devneeds.ir
     # The following line can be used to set a custom config file, stored in the local config folder
     AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
-    AIRFLOW_CONN_POSTGRES: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    AIRFLOW_CONN_POSTGRES: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresdb:5432/${POSTGRES_DB}
     AIRFLOW_CONN_MONGO_DEFAULT: mongo://${MONGO_USER}:${MONGO_PASSWORD}@mongodb:27017/?authSource=admin
     AIRFLOW_CONN_KAFKA_DEFAULT: kafka://kafka1:9092,kafka2:9092,kafka3:9092
     AIRFLOW_CONN_CLICKHOUSE_DEFAULT: clickhouse://clickhouse:9000/default?user=default&password=
@@ -40,9 +42,11 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/docker-init.sh:/opt/airflow/docker-init.sh
     - ${AIRFLOW_PROJ_DIR:-.}/scripts:/opt/scripts
     - ${PROJ_DATA_DIR}:/opt/airflow/data
+    - ${KAFKA_DIR}/schemas:/opt/airflow/schema
   user: "${AIRFLOW_UID:-1000}:0"
   networks:
     - airflow_network
+    - kafka_network
   depends_on:
     &airflow-common-depends-on
     redis:
@@ -87,6 +91,7 @@ services:
       start_period: 10s
     networks:
       - postgres_network
+      - airflow_network
 
   kafka1:
     image: ${REGISTRY}/confluentinc/cp-kafka:7.9.7
@@ -151,6 +156,22 @@ services:
     networks:
       - kafka_network
 
+  kafka-init:
+    image: ${REGISTRY}/confluentinc/cp-kafka:7.9.7
+    container_name: kafka-init
+    entrypoint: ["/bin/bash", "/scripts/create-topics.sh"]
+    volumes:
+      - ./kafka/init/create-topics.sh:/scripts/create-topics.sh:ro
+    depends_on:
+      kafka1:
+        condition: service_started
+      kafka2:
+        condition: service_started
+      kafka3:
+        condition: service_started
+    networks:
+      - kafka_network
+
   schema-registry:
     image: ${REGISTRY}/confluentinc/cp-schema-registry:7.9.7
     container_name: schema-registry
@@ -165,7 +186,26 @@ services:
     networks:
       - kafka_network
 
-  kafbat-ui:
+  schema-registry-init:
+    image: python:3.10-alpine
+    container_name: schema-registry-init
+    restart: "no"
+    depends_on:
+      - schema-registry
+    networks:
+      - kafka_network
+    environment:
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      SCHEMA_DIR: /schemas
+    volumes:
+      - ./kafka/register_schemas.sh:/register_schemas.sh:ro
+      - ./kafka/schemas/avro:/schemas:ro
+    command: >
+      /bin/sh -c "
+        apk add --no-cache curl bash jq &&
+        bash /register_schemas.sh
+      "
+  kafbatui:
     container_name: kafka-ui
     image: ${REGISTRY}/kafbat/kafka-ui:v1.5.0
     environment:
@@ -188,7 +228,6 @@ services:
       - "traefik.http.routers.kafka-ui.entrypoints=web"
       - "traefik.http.services.kafka-ui.loadbalancer.server.port=8080"
       - "traefik.docker.network=traefik_traefik_network"
-
 
   postgres-airflow:
     image: ${REGISTRY}/postgres:16
@@ -240,10 +279,10 @@ services:
       - airflow_network
     healthcheck:
       test: [ "CMD", "curl", "--fail", "http://localhost:8080/api/v2/monitor/health" ]
-      interval: 30s
+      interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 20s
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
@@ -331,11 +370,12 @@ services:
     # yamllint enable rule:line-length
     environment:
       <<: *airflow-common-env
+      AIRFLOW_UID: "${AIRFLOW_UID:-1000}"
       _AIRFLOW_DB_MIGRATE: 'true'
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
       _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
-      _PIP_ADDITIONAL_REQUIREMENTS: ''
+      _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
     user: "0:0"
 
   airflow-cli:
