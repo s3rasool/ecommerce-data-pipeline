@@ -89,6 +89,7 @@ services:
       start_period: 10s
     networks:
       - postgres_network
+      - airflow_network
 
   kafka1:
     image: ${REGISTRY}/confluentinc/cp-kafka:7.9.7
@@ -258,10 +259,10 @@ services:
       - airflow_network
     healthcheck:
       test: [ "CMD", "curl", "--fail", "http://localhost:8080/api/v2/monitor/health" ]
-      interval: 30s
+      interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 20s
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
