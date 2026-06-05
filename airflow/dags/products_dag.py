@@ -7,6 +7,7 @@ from confluent_kafka import SerializingProducer
 from confluent_kafka.serialization import StringSerializer
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroSerializer
+from decimal import Decimal
 import json
 import logging
 import re
@@ -37,7 +38,7 @@ PRODUCTS_AVRO_SCHEMA = {
 
 
 def extract_products_by_id(**context):
-    conn_id = 'postgres_digikala'
+    conn_id = 'postgres'
 
     last_id = Variable.get("last_id_products", default_var='P0')
     logging.info(f"Last ID for products was: {last_id}")
@@ -47,20 +48,23 @@ def extract_products_by_id(**context):
     hook = PostgresHook(postgres_conn_id=conn_id)
 
     sql = f"""
-        SELECT * FROM products
+        SELECT * FROM raw.products
         WHERE CAST(REPLACE(product_id, 'P', '') AS INTEGER) > {last_id_num}
         ORDER BY CAST(REPLACE(product_id, 'P', '') AS INTEGER) ASC
     """
 
     logging.info(f"Executing query: {sql}")
-    records = hook.get_records(sql)
+    conn = hook.get_conn()
+    cursor = conn.cursor()
+    cursor.execute(sql)
+
+    records = cursor.fetchall()
+    columns = [desc[0] for desc in cursor.description]
 
     if not records:
-        logging.info(f"No new products found")
+        logging.info("No new products found. Skipping.")
         context['task_instance'].xcom_push(key='products_data', value=[])
         return []
-
-    columns = [col[0] for col in hook.get_description(sql)]
 
     result = []
     for row in records:
@@ -68,6 +72,8 @@ def extract_products_by_id(**context):
         for key, value in record_dict.items():
             if isinstance(value, datetime):
                 record_dict[key] = value.isoformat()
+            elif isinstance(value, Decimal):
+                record_dict[key] = str(value)
         result.append(record_dict)
 
     last_product_id = records[-1][columns.index('product_id')]
@@ -90,17 +96,17 @@ def send_products_to_kafka(**context):
         logging.info(f"No new products to send")
         return
 
-    schema_registry_conf = {'url': 'http://localhost:8081'}
+    schema_registry_conf = {'url': 'http://schema-registry:8081'}
     schema_registry_client = SchemaRegistryClient(schema_registry_conf)
 
     avro_serializer = AvroSerializer(
         schema_registry_client=schema_registry_client,
         schema_str=json.dumps(PRODUCTS_AVRO_SCHEMA),
-        conf={'auto.register.schemas': True, 'use.latest.version': True}
+        conf={'auto.register.schemas': True}
     )
 
     producer_conf = {
-        'bootstrap.servers': 'kafka:9092',
+        'bootstrap.servers': 'kafka1:9092,kafka2:9092,kafka3:9092',
         'key.serializer': StringSerializer(),
         'value.serializer': avro_serializer
     }
@@ -109,7 +115,7 @@ def send_products_to_kafka(**context):
     for record in data:
         key = str(record.get('product_id', 'unknown'))
         producer.produce(
-            topic='digikala.public.products',
+            topic='products',
             key=key,
             value=record
         )
@@ -122,20 +128,20 @@ def send_products_to_kafka(**context):
 with DAG(
         dag_id='extract_products_to_kafka',
         default_args=default_args,
-        schedule_interval='0 * * * *',
+        schedule='0 * * * *',
         catchup=False,
         max_active_runs=1
 ) as dag:
     extract_products = PythonOperator(
         task_id='extract_products',
         python_callable=extract_products_by_id,
-        provide_context=True
+        
     )
 
     send_products = PythonOperator(
         task_id='send_products_to_kafka',
         python_callable=send_products_to_kafka,
-        provide_context=True
+        
     )
 
     extract_products >> send_products

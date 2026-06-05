@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 from airflow import DAG
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.standard.operators.python import PythonOperator
@@ -27,13 +28,13 @@ ORDERS_AVRO_SCHEMA = {
     "fields": [
         {"name": "order_id", "type": "string"},
         {"name": "user_id", "type": "string"},
-            {
-                "name": "timestamp",
-                "type": {
-                    "type": "long",
-                    "logicalType": "timestamp-millis"
-                }
-            },
+        {
+            "name": "timestamp",
+            "type": {
+                "type": "long",
+                "logicalType": "timestamp-millis"
+            }
+        },
         {"name": "total", "type": "float"},
         {"name": "status", "type": "string"},
         {"name": "payment_method", "type": "string"}
@@ -42,12 +43,14 @@ ORDERS_AVRO_SCHEMA = {
 
 
 def extract_orders_incremental(**context):
-    conn_id = 'AIRFLOW_CONN_POSTGRES'
+    conn_id = 'postgres'
     time_field = 'timestamp'
-    last_run = Variable.get("orders last run was", default_var='1970-01-01 00:00:00')
+
+    last_run = Variable.get("orders_last_run", default_var='1970-01-01 00:00:00')
     logging.info(f"Last run for orders was: {last_run}")
 
     hook = PostgresHook(postgres_conn_id=conn_id)
+
     sql = f"""
         SELECT * FROM orders
         WHERE {time_field} > '{last_run}'
@@ -55,32 +58,38 @@ def extract_orders_incremental(**context):
     """
 
     logging.info(f"Executing query: {sql}")
-    records = hook.get_records(sql)
+
+    conn = hook.get_conn()
+    cursor = conn.cursor()
+    cursor.execute(sql)
+
+    records = cursor.fetchall()
+    columns = [desc[0] for desc in cursor.description]
 
     if not records:
-        logging.info(f"No new orders found")
+        logging.info("No new orders found. Skipping.")
         context['task_instance'].xcom_push(key='orders_data', value=[])
         return []
-
-    columns = [col[0] for col in hook.get_description(sql)]
 
     result = []
     for row in records:
         record_dict = dict(zip(columns, row))
         for key, value in record_dict.items():
             if isinstance(value, datetime):
-                record_dict[key] = value.isoformat()
+                record_dict[key] = int(value.timestamp() * 1000)
+            elif isinstance(value, Decimal):
+                record_dict[key] = str(value)
         result.append(record_dict)
 
     time_index = columns.index(time_field)
     last_timestamp = records[-1][time_index]
     if isinstance(last_timestamp, datetime):
         last_timestamp = last_timestamp.isoformat()
-    Variable.set("orders last run was", str(last_timestamp))
-    logging.info(f"Updated last_run for orders : {last_timestamp}")
+    Variable.set("orders_last_run", str(last_timestamp))
+    logging.info(f"Updated last_run for orders: {last_timestamp}")
 
     context['task_instance'].xcom_push(key='orders_data', value=result)
-    logging.info(f" Extracted {len(result)} new orders")
+    logging.info(f"Extracted {len(result)} new orders")
 
     return result
 
@@ -92,10 +101,10 @@ def send_orders_to_kafka(**context):
     )
 
     if not data:
-        logging.info(f"No new orders to send")
+        logging.info("No new orders to send")
         return
 
-    schema_registry_conf = {'url': 'http://localhost:8081'}
+    schema_registry_conf = {'url': 'http://schema-registry:8081'}
     schema_registry_client = SchemaRegistryClient(schema_registry_conf)
 
     avro_serializer = AvroSerializer(
@@ -105,7 +114,7 @@ def send_orders_to_kafka(**context):
     )
 
     producer_conf = {
-        'bootstrap.servers': 'kafka:9092',
+        'bootstrap.servers': 'kafka1:9092,kafka2:9092,kafka3:9092',
         'key.serializer': StringSerializer(),
         'value.serializer': avro_serializer
     }
@@ -121,26 +130,24 @@ def send_orders_to_kafka(**context):
         producer.poll(0)
 
     producer.flush()
-    logging.info(f" Sent {len(data)} orders to Kafka")
+    logging.info(f"Sent {len(data)} orders to Kafka")
 
 
 with DAG(
-        dag_id='extract_orders_to_kafka',
-        default_args=default_args,
-        schedule_interval='0 * * * *',
-        catchup=False,
-        max_active_runs=1
+    dag_id='extract_orders_to_kafka',
+    default_args=default_args,
+    schedule='0 * * * *',
+    catchup=False,
+    max_active_runs=1
 ) as dag:
     extract_orders = PythonOperator(
         task_id='extract_orders',
         python_callable=extract_orders_incremental,
-        provide_context=True
     )
 
     send_orders = PythonOperator(
         task_id='send_orders_to_kafka',
         python_callable=send_orders_to_kafka,
-        provide_context=True
     )
 
     extract_orders >> send_orders
