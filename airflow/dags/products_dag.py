@@ -115,7 +115,7 @@ def send_products_to_kafka(**context):
     for record in data:
         key = str(record.get('product_id', 'unknown'))
         producer.produce(
-            topic='products',
+            topic='ecommerce.products.ingest',
             key=key,
             value=record
         )

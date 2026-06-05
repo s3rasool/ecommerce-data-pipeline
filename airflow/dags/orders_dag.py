@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
+import re
 from airflow import DAG
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.standard.operators.python import PythonOperator
@@ -44,17 +45,18 @@ ORDERS_AVRO_SCHEMA = {
 
 def extract_orders_incremental(**context):
     conn_id = 'postgres'
-    time_field = 'timestamp'
 
-    last_run = Variable.get("orders_last_run", default_var='1970-01-01 00:00:00')
-    logging.info(f"Last run for orders was: {last_run}")
+    last_id = Variable.get("last_id_orders", default_var='O0')
+    logging.info(f"Last ID for orders was: {last_id}")
+
+    last_id_num = int(re.sub(r'[^0-9]', '', last_id)) if last_id != 'O0' else 0
 
     hook = PostgresHook(postgres_conn_id=conn_id)
 
     sql = f"""
-        SELECT * FROM orders
-        WHERE {time_field} > '{last_run}'
-        ORDER BY {time_field} ASC
+        SELECT * FROM raw.orders
+        WHERE CAST(REPLACE(order_id, 'O', '') AS INTEGER) > {last_id_num}
+        ORDER BY CAST(REPLACE(order_id, 'O', '') AS INTEGER) ASC
     """
 
     logging.info(f"Executing query: {sql}")
@@ -81,12 +83,9 @@ def extract_orders_incremental(**context):
                 record_dict[key] = str(value)
         result.append(record_dict)
 
-    time_index = columns.index(time_field)
-    last_timestamp = records[-1][time_index]
-    if isinstance(last_timestamp, datetime):
-        last_timestamp = last_timestamp.isoformat()
-    Variable.set("orders_last_run", str(last_timestamp))
-    logging.info(f"Updated last_run for orders: {last_timestamp}")
+    last_order_id = records[-1][columns.index('order_id')]
+    Variable.set("last_id_orders", str(last_order_id))
+    logging.info(f"Updated last_id for orders: {last_order_id}")
 
     context['task_instance'].xcom_push(key='orders_data', value=result)
     logging.info(f"Extracted {len(result)} new orders")
@@ -110,7 +109,7 @@ def send_orders_to_kafka(**context):
     avro_serializer = AvroSerializer(
         schema_registry_client=schema_registry_client,
         schema_str=json.dumps(ORDERS_AVRO_SCHEMA),
-        conf={'auto.register.schemas': True, 'use.latest.version': True}
+        conf={'auto.register.schemas': True}
     )
 
     producer_conf = {
@@ -123,7 +122,7 @@ def send_orders_to_kafka(**context):
     for record in data:
         key = str(record.get('order_id', 'unknown'))
         producer.produce(
-            topic='orders',
+            topic='ecommerce.orders.ingest',
             key=key,
             value=record
         )

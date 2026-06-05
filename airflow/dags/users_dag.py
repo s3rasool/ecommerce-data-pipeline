@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
+import re
 from airflow import DAG
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.standard.operators.python import PythonOperator
@@ -45,16 +46,18 @@ USERS_AVRO_SCHEMA = {
 
 def extract_users_incremental(**context):
     conn_id = 'postgres'
-    time_field = 'signup_date'
 
-    last_run = Variable.get("last_run_users", default_var='1970-01-01 00:00:00')
-    logging.info(f"Last run for users was: {last_run}")
+    last_id = Variable.get("last_id_users", default_var='U0')
+    logging.info(f"Last ID for users was: {last_id}")
+
+    last_id_num = int(re.sub(r'[^0-9]', '', last_id)) if last_id != 'U0' else 0
 
     hook = PostgresHook(postgres_conn_id=conn_id)
+
     sql = f"""
-        SELECT * FROM users
-        WHERE {time_field} > '{last_run}'
-        ORDER BY {time_field} ASC
+        SELECT * FROM raw.users
+        WHERE CAST(REPLACE(user_id, 'U', '') AS INTEGER) > {last_id_num}
+        ORDER BY CAST(REPLACE(user_id, 'U', '') AS INTEGER) ASC
     """
 
     logging.info(f"Executing query: {sql}")
@@ -76,18 +79,14 @@ def extract_users_incremental(**context):
         record_dict = dict(zip(columns, row))
         for key, value in record_dict.items():
             if isinstance(value, datetime):
-                # Convert to milliseconds integer for Avro timestamp-millis
                 record_dict[key] = int(value.timestamp() * 1000)
             elif isinstance(value, Decimal):
                 record_dict[key] = str(value)
         result.append(record_dict)
 
-    time_index = columns.index(time_field)
-    last_timestamp = records[-1][time_index]
-    if isinstance(last_timestamp, datetime):
-        last_timestamp = last_timestamp.isoformat()
-    Variable.set("last_run_users", str(last_timestamp))
-    logging.info(f"Updated last_run for users: {last_timestamp}")
+    last_user_id = records[-1][columns.index('user_id')]
+    Variable.set("last_id_users", str(last_user_id))
+    logging.info(f"Updated last_id for users: {last_user_id}")
 
     context['task_instance'].xcom_push(key='users_data', value=result)
     logging.info(f"Extracted {len(result)} new users")
@@ -111,7 +110,7 @@ def send_users_to_kafka(**context):
     avro_serializer = AvroSerializer(
         schema_registry_client=schema_registry_client,
         schema_str=json.dumps(USERS_AVRO_SCHEMA),
-        conf={'auto.register.schemas': True, 'use.latest.version': True}
+        conf={'auto.register.schemas': True}
     )
 
     producer_conf = {
@@ -124,7 +123,7 @@ def send_users_to_kafka(**context):
     for record in data:
         key = str(record.get('user_id', 'unknown'))
         producer.produce(
-            topic='digikala.public.users',
+            topic='ecommerce.users.ingest',
             key=key,
             value=record
         )
