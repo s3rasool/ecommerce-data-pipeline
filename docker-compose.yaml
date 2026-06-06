@@ -428,6 +428,8 @@ services:
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - clickhouse_logs:/var/log/clickhouse-server
+    ports:
+      - "8123:8123"
     networks:
       - kafka_network
     healthcheck:
