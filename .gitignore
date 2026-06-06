@@ -1,9 +1,6 @@
 # ---> JupyterNotebooks
 # gitignore template for Jupyter Notebooks
 # website: http://jupyter.org/
-test_data
-venv
-questions.txt
 .env
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
