@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS transformed.products (
     inventory UInt32,
     popularity_score Float64
 ) ENGINE = MergeTree()
-ORDER BY (product_id);
+ORDER BY (category, product_id);
 
 CREATE TABLE IF NOT EXISTS transformed.orders (
     order_id UInt64,
@@ -98,8 +98,8 @@ CREATE TABLE IF NOT EXISTS transformed.orders (
     status String,
     payment_method String
 ) ENGINE = MergeTree()
-ORDER BY (order_id, timestamp);
-
+PARTITION BY toYYYYMM(timestamp)
+ORDER BY (timestamp, order_id);
 
 -----------------------------
 --materialized views
