@@ -1,3 +1,5 @@
+SET enable_json_type = 1;
+
 CREATE TABLE IF NOT EXISTS transformed.users (
     user_id UInt64,
     name String,

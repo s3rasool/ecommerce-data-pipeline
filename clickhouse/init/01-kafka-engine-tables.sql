@@ -12,11 +12,10 @@ CREATE TABLE
     ) ENGINE = Kafka SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
     kafka_topic_list = 'ecommerce.users.ingest',
     kafka_group_name = 'clickhouse_users_consumer_group',
-    format_avro_schema_registry_url = 'http://schema-registry:8081'
+    format_avro_schema_registry_url = 'http://schema-registry:8081',
     kafka_format = 'AvroConfluent',
     kafka_num_consumers = 1,
     kafka_thread_per_consumer = 1;
-    kafka_handle_error_mode = 'dead_letter_queue';
 
 CREATE TABLE
     IF NOT EXISTS transformed.kafka_products (
@@ -29,11 +28,10 @@ CREATE TABLE
     ) ENGINE = Kafka SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
     kafka_topic_list = 'ecommerce.products.ingest',
     kafka_group_name = 'clickhouse_products_consumer_group',
-    format_avro_schema_registry_url = 'http://schema-registry:8081'
+    format_avro_schema_registry_url = 'http://schema-registry:8081',
     kafka_format = 'AvroConfluent',
     kafka_num_consumers = 1,
     kafka_thread_per_consumer = 1;
-    kafka_handle_error_mode = 'dead_letter_queue';
 
 CREATE TABLE
     IF NOT EXISTS transformed.kafka_orders (
@@ -46,19 +44,16 @@ CREATE TABLE
     ) ENGINE = Kafka SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
     kafka_topic_list = 'ecommerce.orders.ingest',
     kafka_group_name = 'clickhouse_orders_consumer_group',
-    format_avro_schema_registry_url = 'http://schema-registry:8081'
+    format_avro_schema_registry_url = 'http://schema-registry:8081',
     kafka_format = 'AvroConfluent',
     kafka_num_consumers = 1,
     kafka_thread_per_consumer = 1;
-    kafka_handle_error_mode = 'dead_letter_queue';
 
 CREATE TABLE
     IF NOT EXISTS transformed.behavioral_events_raw (raw String) ENGINE = Kafka SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
     kafka_topic_list = 'ecommerce.events.ingest',
     kafka_group_name = 'clickhouse_behavioral_events_consumer_group',
-    format_avro_schema_registry_url = 'http://schema-registry:8081'
+    format_avro_schema_registry_url = 'http://schema-registry:8081',
     kafka_format = 'AvroConfluent',
     kafka_num_consumers = 1,
     kafka_thread_per_consumer = 1;
-    kafka_thread_per_consumer = 1;
-    kafka_handle_error_mode = 'dead_letter_queue';
