@@ -15,8 +15,7 @@ CREATE TABLE
     kafka_format = 'AvroConfluent',
     kafka_num_consumers = 1,
     kafka_thread_per_consumer = 1;
-
-kafka_handle_error_mode = 'dead_letter_queue';
+    kafka_handle_error_mode = 'dead_letter_queue';
 
 CREATE TABLE
     IF NOT EXISTS transformed.kafka_products (
@@ -32,8 +31,7 @@ CREATE TABLE
     kafka_format = 'AvroConfluent',
     kafka_num_consumers = 1,
     kafka_thread_per_consumer = 1;
-
-kafka_handle_error_mode = 'dead_letter_queue';
+    kafka_handle_error_mode = 'dead_letter_queue';
 
 CREATE TABLE
     IF NOT EXISTS transformed.kafka_orders (
@@ -49,8 +47,7 @@ CREATE TABLE
     kafka_format = 'AvroConfluent',
     kafka_num_consumers = 1,
     kafka_thread_per_consumer = 1;
-
-kafka_handle_error_mode = 'dead_letter_queue';
+    kafka_handle_error_mode = 'dead_letter_queue';
 
 CREATE TABLE
     IF NOT EXISTS transformed.behavioral_events_raw (raw String) ENGINE = Kafka SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
@@ -59,7 +56,5 @@ CREATE TABLE
     kafka_format = 'AvroConfluent',
     kafka_num_consumers = 1,
     kafka_thread_per_consumer = 1;
-
-kafka_thread_per_consumer = 1;
-
-kafka_handle_error_mode = 'dead_letter_queue';
+    kafka_thread_per_consumer = 1;
+    kafka_handle_error_mode = 'dead_letter_queue';
