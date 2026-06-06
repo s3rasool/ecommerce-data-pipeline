@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS transformed.kafka_users (
     kafka_format = 'AvroConfluent',
     kafka_num_consumers = 1,
     kafka_thread_per_consumer = 1;
+    kafka_handle_error_mode = 'dead_letter_queue';
 
 CREATE TABLE IF NOT EXISTS transformed.kafka_products (
     product_id UInt64,
@@ -34,6 +35,7 @@ CREATE TABLE IF NOT EXISTS transformed.kafka_products (
     kafka_format = 'AvroConfluent',
     kafka_num_consumers = 1,
     kafka_thread_per_consumer = 1;
+    kafka_handle_error_mode = 'dead_letter_queue';
 
 CREATE TABLE IF NOT EXISTS transformed.kafka_orders (
     order_id UInt64,
@@ -49,6 +51,7 @@ CREATE TABLE IF NOT EXISTS transformed.kafka_orders (
     kafka_format = 'AvroConfluent',
     kafka_num_consumers = 1,
     kafka_thread_per_consumer = 1;
+    kafka_handle_error_mode = 'dead_letter_queue';
 
 CREATE TABLE IF NOT EXISTS transformed.behavioral_events_raw (
     raw String
@@ -59,6 +62,7 @@ CREATE TABLE IF NOT EXISTS transformed.behavioral_events_raw (
     kafka_format = 'AvroConfluent',
     kafka_num_consumers = 1,
     kafka_thread_per_consumer = 1;
+    kafka_handle_error_mode = 'dead_letter_queue';
 
 
 -----------------------------
