@@ -417,6 +417,29 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+  clickhouse:
+    image: ${REGISTRY}/clickhouse/clickhouse-server:26.5
+    container_name: clickhouse
+    hostname: clickhouse
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+    networks:
+      - airflow_network
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
 volumes:
   postgres-airflow-db-volume:
   mongo_data:
@@ -425,6 +448,8 @@ volumes:
   kafka_data_1:
   kafka_data_2:
   kafka_data_3:
+  clickhouse_data:
+  clickhouse_logs:
 
 networks:
   mongo_network:
