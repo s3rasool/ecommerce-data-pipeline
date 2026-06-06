@@ -1,8 +1,6 @@
 from datetime import datetime, timezone
-import os
 import json
-import shutil
-
+import os
 
 
 def parse_timestamp(value):
@@ -20,9 +18,7 @@ def parse_timestamp(value):
 def transform_json_files(
     extracted_dir,
     transformed_dir,
-    # clean the extracted files folder if all files successfully transformed
     cleanup_extracted=False,
-    # to skip already proccessed files(double safty)
     skip_existing=True,
 ):
     os.makedirs(transformed_dir, exist_ok=True)
@@ -38,13 +34,11 @@ def transform_json_files(
     if not os.path.exists(extracted_dir):
         raise ValueError(f"Extracted directory not found: {extracted_dir}")
 
-    extracted_files = sorted(
-        [
-            file_name
-            for file_name in os.listdir(extracted_dir)
-            if file_name.endswith(".json")
-        ]
-    )
+    extracted_files = [
+        file_name
+        for file_name in os.listdir(extracted_dir)
+        if file_name.endswith(".json")
+    ]
 
     if not extracted_files:
         print(f"[INFO] No JSON files found in: {extracted_dir}")
@@ -57,6 +51,7 @@ def transform_json_files(
     total_valid_events = 0
     total_invalid_events = 0
     failed_files = []
+    successfully_transformed_inputs = []
 
     print(f"[INFO] Found {total_files_seen} extracted file(s).")
 
@@ -66,6 +61,7 @@ def transform_json_files(
         base_name, _ = os.path.splitext(file_name)
         output_file_name = f"{base_name}_transformed.jsonl"
         output_path = os.path.join(transformed_dir, output_file_name)
+        temp_output_path = output_path + ".tmp"
 
         if skip_existing and os.path.exists(output_path):
             total_files_skipped += 1
@@ -88,7 +84,7 @@ def transform_json_files(
             if not isinstance(events, list):
                 raise ValueError(f"Extracted JSON file is not a list: {file_name}")
 
-            with open(output_path, "w", encoding="utf-8") as output_file:
+            with open(temp_output_path, "w", encoding="utf-8") as output_file:
                 for index, event in enumerate(events, start=1):
                     file_raw_events += 1
                     total_raw_events += 1
@@ -103,7 +99,6 @@ def transform_json_files(
                         continue
 
                     missing_fields = required_fields - set(event.keys())
-
                     if missing_fields:
                         file_invalid_events += 1
                         total_invalid_events += 1
@@ -115,84 +110,88 @@ def transform_json_files(
 
                     try:
                         event_timestamp = parse_timestamp(event["timestamp"])
+
+                        event["timestamp"] = event_timestamp.isoformat()
+                        event["event_date"] = event_timestamp.date().isoformat()
+                        event["event_hour"] = event_timestamp.hour
+
+                        event["user_id"] = str(event["user_id"]).strip()
+                        event["event_type"] = str(event["event_type"]).strip().lower()
+                        event["device"] = str(event["device"]).strip().lower()
+                        event["session_id"] = str(event["session_id"]).strip()
+
+                        if "duration_sec" in event and event["duration_sec"] is not None:
+                            event["duration_sec"] = int(event["duration_sec"])
+
+                        if "http_status" in event and event["http_status"] is not None:
+                            event["http_status"] = int(event["http_status"])
+
+                        if "results_count" in event and event["results_count"] is not None:
+                            event["results_count"] = int(event["results_count"])
+
+                        if "clicked_position" in event and event["clicked_position"] is not None:
+                            event["clicked_position"] = int(event["clicked_position"])
+
+                        if "quantity" in event and event["quantity"] is not None:
+                            event["quantity"] = int(event["quantity"])
+
+                        if "cart_total_items" in event and event["cart_total_items"] is not None:
+                            event["cart_total_items"] = int(event["cart_total_items"])
+
+                        if "cart_value" in event and event["cart_value"] is not None:
+                            event["cart_value"] = float(event["cart_value"])
+
+                        if "cart_items" in event and isinstance(event["cart_items"], list):
+                            cleaned_cart_items = []
+
+                            for item in event["cart_items"]:
+                                if not isinstance(item, dict):
+                                    continue
+
+                                cleaned_item = {
+                                    "product_id": str(item.get("product_id")).strip()
+                                    if item.get("product_id") is not None
+                                    else None,
+                                    "price": float(item.get("price", 0)),
+                                    "quantity": int(item.get("quantity", 0)),
+                                }
+
+                                cleaned_cart_items.append(cleaned_item)
+
+                            event["cart_items"] = cleaned_cart_items
+
+                        event["extracted_file"] = file_name
+                        event["transformed_at"] = datetime.now(timezone.utc).isoformat()
+
+                        output_file.write(json.dumps(event, ensure_ascii=False) + "\n")
+
+                        file_valid_events += 1
+                        total_valid_events += 1
+
                     except Exception as e:
                         file_invalid_events += 1
                         total_invalid_events += 1
                         print(
-                            f"[WARN] Invalid timestamp in {file_name} "
-                            f"at record {index}: {event.get('timestamp')} | {e}"
+                            f"[WARN] Failed to transform event in {file_name} "
+                            f"at record {index}: {e}"
                         )
                         continue
 
-                    event["timestamp"] = event_timestamp.isoformat()
-                    event["event_date"] = event_timestamp.date().isoformat()
-                    event["event_hour"] = event_timestamp.hour
-
-                    event["user_id"] = str(event["user_id"]).strip()
-                    event["event_type"] = str(event["event_type"]).strip().lower()
-                    event["device"] = str(event["device"]).strip().lower()
-                    event["session_id"] = str(event["session_id"]).strip()
-
-                    if "duration_sec" in event and event["duration_sec"] is not None:
-                        event["duration_sec"] = int(event["duration_sec"])
-
-                    if "http_status" in event and event["http_status"] is not None:
-                        event["http_status"] = int(event["http_status"])
-
-                    if "results_count" in event and event["results_count"] is not None:
-                        event["results_count"] = int(event["results_count"])
-
-                    if "clicked_position" in event and event["clicked_position"] is not None:
-                        event["clicked_position"] = int(event["clicked_position"])
-
-                    if "quantity" in event and event["quantity"] is not None:
-                        event["quantity"] = int(event["quantity"])
-
-                    if "cart_total_items" in event and event["cart_total_items"] is not None:
-                        event["cart_total_items"] = int(event["cart_total_items"])
-
-                    if "cart_value" in event and event["cart_value"] is not None:
-                        event["cart_value"] = float(event["cart_value"])
-
-                    if "cart_items" in event and isinstance(event["cart_items"], list):
-                        cleaned_cart_items = []
-
-                        for item in event["cart_items"]:
-                            if not isinstance(item, dict):
-                                continue
-
-                            cleaned_item = {
-                                "product_id": str(item.get("product_id")).strip()
-                                if item.get("product_id") is not None
-                                else None,
-                                "price": float(item.get("price", 0)),
-                                "quantity": int(item.get("quantity", 0)),
-                            }
-
-                            cleaned_cart_items.append(cleaned_item)
-
-                        event["cart_items"] = cleaned_cart_items
-
-                    event["source_file"] = file_name
-                    event["transformed_at"] = datetime.now(timezone.utc).isoformat()
-
-                    output_file.write(json.dumps(event, ensure_ascii=False) + "\n")
-
-                    file_valid_events += 1
-                    total_valid_events += 1
+            os.replace(temp_output_path, output_path)
 
             total_files_transformed += 1
+            successfully_transformed_inputs.append(input_path)
 
-            print(f"[INFO] File transformed successfully: {file_name}")
-            print(f"[INFO] Raw events: {file_raw_events}")
-            print(f"[INFO] Valid transformed events: {file_valid_events}")
-            print(f"[INFO] Invalid skipped events: {file_invalid_events}")
-            print(f"[INFO] Output written to: {output_path}")
+            if file_valid_events == 0:
+                print(f"[WARN] File produced 0 valid transformed events: {file_name}")
 
         except Exception as e:
             failed_files.append(file_name)
-
             print(f"[ERROR] Failed to transform file {file_name}: {e}")
+
+            if os.path.exists(temp_output_path):
+                os.remove(temp_output_path)
+                print(f"[INFO] Removed partial temp transformed file: {temp_output_path}")
 
             if os.path.exists(output_path):
                 os.remove(output_path)
@@ -214,21 +213,15 @@ def transform_json_files(
         raise ValueError(f"Transformation failed for files: {failed_files}")
 
     if cleanup_extracted:
-        print(f"[INFO] Cleaning extracted directory: {extracted_dir}")
+        print(f"[INFO] Cleaning successfully transformed extracted files from: {extracted_dir}")
 
-        for item_name in os.listdir(extracted_dir):
-            item_path = os.path.join(extracted_dir, item_name)
-
+        for input_path in successfully_transformed_inputs:
             try:
-                if os.path.isfile(item_path) or os.path.islink(item_path):
-                    os.remove(item_path)
-                elif os.path.isdir(item_path):
-                    shutil.rmtree(item_path)
-
-                print(f"[INFO] Removed: {item_path}")
-
+                if os.path.exists(input_path):
+                    os.remove(input_path)
+                    print(f"[INFO] Removed: {input_path}")
             except Exception as e:
-                print(f"[ERROR] Failed to remove {item_path}: {e}")
+                print(f"[ERROR] Failed to remove {input_path}: {e}")
                 raise
 
-        print("[INFO] Extracted directory cleaned successfully.")
+        print("[INFO] Extracted files cleaned successfully.")
