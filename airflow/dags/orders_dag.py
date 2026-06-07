@@ -2,15 +2,18 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from decimal import Decimal
 import re
+import logging
+
 from airflow import DAG
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.standard.operators.python import PythonOperator
 from airflow.models import Variable
+
 from confluent_kafka import SerializingProducer
 from confluent_kafka.serialization import StringSerializer
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroSerializer
-import logging
+
 
 default_args = {
     'owner': 'airflow',
@@ -52,32 +55,42 @@ def extract_orders_incremental(**context):
 
     if not records:
         logging.info("No new orders found. Skipping.")
-        context['task_instance'].xcom_push(key='orders_data', value=[])
-        return []
+        return {
+            "data": [],
+            "last_id": last_id
+        }
 
     result = []
     for row in records:
         record_dict = dict(zip(columns, row))
+
         for key, value in record_dict.items():
             if isinstance(value, datetime):
                 record_dict[key] = int(value.timestamp() * 1_000_000)
+            elif isinstance(value, Decimal):
+                record_dict[key] = float(value)
+
         result.append(record_dict)
 
     last_order_id = records[-1][columns.index('order_id')]
-    Variable.set("last_id_orders", str(last_order_id))
-    logging.info(f"Updated last_id for orders: {last_order_id}")
+    logging.info(f"Extracted {len(result)} new orders, last_order_id={last_order_id}")
 
-    context['task_instance'].xcom_push(key='orders_data', value=result)
-    logging.info(f"Extracted {len(result)} new orders")
-
-    return result
+    return {
+        "data": result,
+        "last_id": str(last_order_id)
+    }
 
 
 def send_orders_to_kafka(**context):
-    data = context['task_instance'].xcom_pull(
-        task_ids='extract_orders',
-        key='orders_data'
-    )
+    ti = context['task_instance']
+    extracted = ti.xcom_pull(task_ids='extract_orders')
+
+    if not extracted:
+        logging.info("No extracted payload found")
+        return
+
+    data = extracted.get("data", [])
+    last_id = extracted.get("last_id")
 
     if not data:
         logging.info("No new orders to send")
@@ -85,7 +98,7 @@ def send_orders_to_kafka(**context):
 
     schema_registry_conf = {'url': 'http://schema-registry:8081'}
     schema_registry_client = SchemaRegistryClient(schema_registry_conf)
-    
+
     with open(ORDERS_SCHEMA_PATH, "r", encoding="utf-8") as f:
         orders_schema_str = f.read()
 
@@ -100,34 +113,64 @@ def send_orders_to_kafka(**context):
         'key.serializer': StringSerializer(),
         'value.serializer': avro_serializer
     }
+
     producer = SerializingProducer(producer_conf)
 
-    for record in data:
-        logging.info(
-            f"Sending order_id={record.get('order_id')} "
-            f"timestamp={record.get('timestamp')} ({type(record.get('timestamp'))}) "
-            f"total={record.get('total')} ({type(record.get('total'))})"
-        )
+    delivery_errors = []
 
-        key = str(record.get('order_id', 'unknown'))
-        producer.produce(
-            topic='ecommerce.orders.ingest',
-            key=key,
-            value=record
-        )
+    def delivery_report(err, msg):
+        if err is not None:
+            logging.error(
+                f"Message delivery failed for key={msg.key() if msg else None}: {err}"
+            )
+            delivery_errors.append(str(err))
+
+    try:
+        for record in data:
+            logging.info(
+                f"Sending order_id={record.get('order_id')} "
+                f"timestamp={record.get('timestamp')} ({type(record.get('timestamp'))}) "
+                f"total={record.get('total')} ({type(record.get('total'))})"
+            )
+
+            key = str(record.get('order_id', 'unknown'))
+
+            producer.produce(
+                topic='ecommerce.orders.ingest',
+                key=key,
+                value=record,
+                on_delivery=delivery_report
+            )
+            producer.poll(0)
+
+        remaining = producer.flush(timeout=60)
+
+        if remaining > 0:
+            raise Exception(f"Kafka flush incomplete, {remaining} message(s) remaining unsent")
+
         producer.poll(0)
 
-    producer.flush()
-    logging.info(f"Sent {len(data)} orders to Kafka")
+        if delivery_errors:
+            raise Exception(f"Kafka delivery had {len(delivery_errors)} error(s): {delivery_errors}")
+
+        Variable.set("last_id_orders", str(last_id))
+        logging.info(f"Sent {len(data)} orders to Kafka successfully")
+        logging.info(f"Updated last_id_orders to {last_id}")
+
+    except Exception as e:
+        logging.exception("Failed sending orders to Kafka. Variable will NOT be updated.")
+        raise
 
 
 with DAG(
     dag_id='extract_orders_to_kafka',
     default_args=default_args,
-    schedule='0 * * * *',
+    schedule='0/30 * * * *',
     catchup=False,
-    max_active_runs=1
+    max_active_runs=1,
+    tags=['postgres', 'kafka', 'orders']
 ) as dag:
+
     extract_orders = PythonOperator(
         task_id='extract_orders',
         python_callable=extract_orders_incremental,
