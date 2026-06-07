@@ -1,0 +1,154 @@
+{
+  "type": "record",
+  "name": "BehavioralEvent",
+  "namespace": "behavioral",
+  "fields": [
+    {
+      "name": "timestamp",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-micros"
+      }
+    },
+    {
+      "name": "user_id",
+      "type": "string"
+    },
+    {
+      "name": "event_type",
+      "type": "string"
+    },
+    {
+      "name": "device",
+      "type": "string"
+    },
+    {
+      "name": "session_id",
+      "type": "string"
+    },
+
+    {
+      "name": "product_id",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "quantity",
+      "type": ["null", "int"],
+      "default": null
+    },
+    {
+      "name": "cart_total_items",
+      "type": ["null", "int"],
+      "default": null
+    },
+    {
+      "name": "cart_items",
+      "type": [
+        "null",
+        {
+          "type": "array",
+          "items": {
+            "name": "cart_item",
+            "type": "record",
+            "fields": [
+              {
+                "name": "product_id",
+                "type": "string"
+              },
+              {
+                "name": "price",
+                "type": "double"
+              },
+              {
+                "name": "quantity",
+                "type": "int"
+              }
+            ]
+          }
+        }
+      ],
+      "default": null
+    },
+    {
+      "name": "cart_value",
+      "type": ["null", "double"],
+      "default": null
+    },
+    {
+      "name": "shipping_method",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "order_id",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "fulfillment_speed",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "url_path",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "duration_sec",
+      "type": ["null", "int"],
+      "default": null
+    },
+    {
+      "name": "http_status",
+      "type": ["null", "int"],
+      "default": null
+    },
+    {
+      "name": "payment_type",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "success",
+      "type": ["null", "boolean"],
+      "default": null
+    },
+    {
+      "name": "error_code",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "query",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "results_count",
+      "type": ["null", "int"],
+      "default": null
+    },
+    {
+      "name": "clicked_position",
+      "type": ["null", "int"],
+      "default": null
+    },
+    {
+      "name": "rating",
+      "type": ["null", "int"],
+      "default": null
+    },
+    {
+      "name": "text_length",
+      "type": ["null", "int"],
+      "default": null
+    },
+    {
+      "name": "wishlist_name",
+      "type": ["null", "string"],
+      "default": null
+    }
+  ]
+}

@@ -5,7 +5,6 @@ from confluent_kafka import SerializingProducer
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroSerializer
 from confluent_kafka.serialization import StringSerializer
-from confluent_kafka.schema_registry import topic_record_subject_name_strategy
 
 from app.mongo_reader import MongoEventReader
 from app.config import (
@@ -13,7 +12,7 @@ from app.config import (
     SCHEMA_REGISTRY_URL,
     TOPIC,
     SCHEMA_DIR,
-    SCHEMA_FILES,
+    SCHEMA_FILE,
 )
 
 
@@ -21,48 +20,35 @@ class EventProducer:
     def __init__(self):
         self.reader = MongoEventReader()
 
-        self.schema_registry_client = SchemaRegistryClient({
+        schema_path = os.path.join(SCHEMA_DIR, SCHEMA_FILE)
+        if not os.path.exists(schema_path):
+            raise FileNotFoundError(f"Schema file not found: {schema_path}")
+
+        with open(schema_path, "r", encoding="utf-8") as f:
+            schema_str = f.read()
+
+        schema_registry_client = SchemaRegistryClient({
             "url": SCHEMA_REGISTRY_URL
         })
 
-        self.producers = {}
+        avro_serializer = AvroSerializer(
+            schema_registry_client=schema_registry_client,
+            schema_str=schema_str,
+        )
+
+        self.producer = SerializingProducer({
+            "bootstrap.servers": KAFKA_BOOTSTRAP_SERVERS,
+            "key.serializer": StringSerializer("utf_8"),
+            "value.serializer": avro_serializer,
+            "acks": "all",
+            "enable.idempotence": True,
+        })
+
         self.failed_count = 0
         self.success_count = 0
         self.skipped_count = 0
 
-        for event_type, schema_file in SCHEMA_FILES.items():
-            schema_path = os.path.join(SCHEMA_DIR, schema_file)
-
-            if not os.path.exists(schema_path):
-                raise FileNotFoundError(f"Schema file not found: {schema_path}")
-
-            with open(schema_path, "r", encoding="utf-8") as f:
-                schema_str = f.read()
-
-            avro_serializer = AvroSerializer(
-                schema_registry_client=self.schema_registry_client,
-                schema_str=schema_str,
-                conf={
-                    "auto.register.schemas": True,
-                    "subject.name.strategy": topic_record_subject_name_strategy,
-                }
-            )
-
-            producer = SerializingProducer({
-                "bootstrap.servers": KAFKA_BOOTSTRAP_SERVERS,
-                "key.serializer": StringSerializer("utf_8"),
-                "value.serializer": avro_serializer,
-                "acks": "all",
-                "enable.idempotence": True,
-            })
-
-            self.producers[event_type] = producer
-
     def _delivery_report(self, mongo_id):
-        """
-        Create callback with mongo_id bound to this message.
-        """
-
         def callback(err, msg):
             if err is not None:
                 self.failed_count += 1
@@ -77,7 +63,6 @@ class EventProducer:
                     f"offset={msg.offset()}"
                 )
                 self.reader.mark_produced(mongo_id)
-
         return callback
 
     def run(self):
@@ -90,26 +75,18 @@ class EventProducer:
                 logging.warning(f"Skipping document without event_type: {event}")
                 continue
 
-            if event_type not in self.producers:
-                self.skipped_count += 1
-                logging.warning(f"Skipping unknown event_type={event_type}, event={event}")
-                continue
-
-            producer = self.producers[event_type]
-
             avro_event = self._prepare_event_for_avro(event)
 
-            producer.produce(
+            self.producer.produce(
                 topic=TOPIC,
                 key=str(avro_event["user_id"]),
                 value=avro_event,
                 on_delivery=self._delivery_report(mongo_id),
             )
 
-            producer.poll(0)
+            self.producer.poll(0)
 
-        for producer in self.producers.values():
-            producer.flush()
+        self.producer.flush()
 
         logging.info(
             f"Kafka production finished. "
@@ -128,112 +105,43 @@ class EventProducer:
         }
 
     def _prepare_event_for_avro(self, event):
-        event_type = event["event_type"]
-
-        allowed_fields_by_event_type = {
-            "add_to_cart": [
-                "timestamp",
-                "user_id",
-                "event_type",
-                "device",
-                "session_id",
-                "product_id",
-                "quantity",
-                "cart_total_items",
-            ],
-            "cart_view": [
-                "timestamp",
-                "user_id",
-                "event_type",
-                "device",
-                "session_id",
-                "cart_items",
-                "cart_value",
-            ],
-            "checkout_start": [
-                "timestamp",
-                "user_id",
-                "event_type",
-                "device",
-                "session_id",
-                "shipping_method",
-                "cart_value",
-            ],
-            "order_complete": [
-                "timestamp",
-                "user_id",
-                "event_type",
-                "device",
-                "session_id",
-                "order_id",
-                "fulfillment_speed",
-            ],
-            "page_view": [
-                "timestamp",
-                "user_id",
-                "event_type",
-                "device",
-                "session_id",
-                "url_path",
-                "duration_sec",
-                "http_status",
-            ],
-            "payment_attempt": [
-                "timestamp",
-                "user_id",
-                "event_type",
-                "device",
-                "session_id",
-                "payment_type",
-                "success",
-                "error_code",
-            ],
-            "product_search": [
-                "timestamp",
-                "user_id",
-                "event_type",
-                "device",
-                "session_id",
-                "query",
-                "results_count",
-                "clicked_position",
-            ],
-            "remove_from_cart": [
-                "timestamp",
-                "user_id",
-                "event_type",
-                "device",
-                "session_id",
-                "product_id",
-                "quantity",
-                "cart_total_items",
-            ],
-            "review_submit": [
-                "timestamp",
-                "user_id",
-                "event_type",
-                "device",
-                "session_id",
-                "product_id",
-                "rating",
-                "text_length",
-            ],
-            "wishlist_add": [
-                "timestamp",
-                "user_id",
-                "event_type",
-                "device",
-                "session_id",
-                "product_id",
-                "wishlist_name",
-            ],
+        """
+        Return event with all schema fields. Missing fields are null.
+        """
+        return {
+            # Common fields
+            "timestamp": event.get("timestamp"),
+            "user_id": event.get("user_id"),
+            "event_type": event.get("event_type"),
+            "device": event.get("device"),
+            "session_id": event.get("session_id"),
+            # page_view
+            "url_path": event.get("url_path"),
+            "duration_sec": event.get("duration_sec"),
+            "http_status": event.get("http_status"),
+            # product_search
+            "query": event.get("query"),
+            "results_count": event.get("results_count"),
+            "clicked_position": event.get("clicked_position"),
+            # add_to_cart / remove_from_cart
+            "product_id": event.get("product_id"),
+            "quantity": event.get("quantity"),
+            "cart_total_items": event.get("cart_total_items"),
+            # cart_view
+            "cart_items": event.get("cart_items"),
+            "cart_value": event.get("cart_value"),
+            # wishlist_add
+            "wishlist_name": event.get("wishlist_name"),
+            # checkout_start
+            "shipping_method": event.get("shipping_method"),
+            # payment_attempt
+            "payment_type": event.get("payment_type"),
+            "success": event.get("success"),
+            "error_code": event.get("error_code"),
+            # order_complete
+            "order_id": event.get("order_id"),
+            "fulfillment_speed": event.get("fulfillment_speed"),
+            # review_submit
+            "rating": event.get("rating"),
+            "text_length": event.get("text_length"),
         }
-
-        allowed_fields = allowed_fields_by_event_type[event_type]
-
-        avro_event = {
-            field: event.get(field)
-            for field in allowed_fields
-        }
-
-        return avro_event
