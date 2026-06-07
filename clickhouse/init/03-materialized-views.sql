@@ -34,130 +34,121 @@ SELECT
 FROM
     transformed.kafka_orders;
 
-CREATE MATERIALIZED VIEW transformed.behavioral_events_mv TO transformed.behavioral_events AS
+CREATE MATERIALIZED VIEW transformed.behavioral_events_mv
+TO transformed.behavioral_events
+AS
 SELECT
-    toDateTime64 (assumeNotNull (`timestamp`), 3, 'UTC') AS `timestamp`,
-    ifNull (user_id, '') AS user_id,
-    ifNull (event_type, '') AS event_type,
-    ifNull (device, '') AS device,
-    ifNull (session_id, '') AS session_id,
+    toDateTime64(assumeNotNull(`timestamp`), 3, 'UTC') AS `timestamp`,
+    ifNull(user_id, '') AS user_id,
+    ifNull(event_type, '') AS event_type,
+    ifNull(device, '') AS device,
+    ifNull(session_id, '') AS session_id,
+
     CAST(
-        concat (
+        concat(
             '{',
-            arrayStringConcat (
-                arrayFilter (
-                    x - > x != '',
-                    array (
-                        if (
+            arrayStringConcat(
+                arrayFilter(
+                    x -> x != '',
+                    array(
+                        if(
                             product_id IS NOT NULL,
-                            concat ('"product_id":', toJSONString (product_id)),
+                            concat('"product_id":', toJSONString(product_id)),
                             ''
                         ),
-                        if (
+                        if(
                             quantity IS NOT NULL,
-                            concat ('"quantity":', toJSONString (quantity)),
+                            concat('"quantity":', toJSONString(quantity)),
                             ''
                         ),
-                        if (
+                        if(
                             cart_total_items IS NOT NULL,
-                            concat (
-                                '"cart_total_items":',
-                                toJSONString (cart_total_items)
-                            ),
+                            concat('"cart_total_items":', toJSONString(cart_total_items)),
                             ''
                         ),
-                        if (
-                            notEmpty (cart_items),
-                            concat ('"cart_items":', toJSONString (cart_items)),
+                        if(
+                            notEmpty(cart_items),
+                            concat('"cart_items":', toJSONString(cart_items)),
                             ''
                         ),
-                        if (
+                        if(
                             cart_value IS NOT NULL,
-                            concat ('"cart_value":', toJSONString (cart_value)),
+                            concat('"cart_value":', toJSONString(cart_value)),
                             ''
                         ),
-                        if (
+                        if(
                             shipping_method IS NOT NULL,
-                            concat (
-                                '"shipping_method":',
-                                toJSONString (shipping_method)
-                            ),
+                            concat('"shipping_method":', toJSONString(shipping_method)),
                             ''
                         ),
-                        if (
+                        if(
                             order_id IS NOT NULL,
-                            concat ('"order_id":', toJSONString (order_id)),
+                            concat('"order_id":', toJSONString(order_id)),
                             ''
                         ),
-                        if (
+                        if(
                             fulfillment_speed IS NOT NULL,
-                            concat (
-                                '"fulfillment_speed":',
-                                toJSONString (fulfillment_speed)
-                            ),
+                            concat('"fulfillment_speed":', toJSONString(fulfillment_speed)),
                             ''
                         ),
-                        if (
+                        if(
                             url_path IS NOT NULL,
-                            concat ('"url_path":', toJSONString (url_path)),
+                            concat('"url_path":', toJSONString(url_path)),
                             ''
                         ),
-                        if (
+                        if(
                             duration_sec IS NOT NULL,
-                            concat ('"duration_sec":', toJSONString (duration_sec)),
+                            concat('"duration_sec":', toJSONString(duration_sec)),
                             ''
                         ),
-                        if (
+                        if(
                             http_status IS NOT NULL,
-                            concat ('"http_status":', toJSONString (http_status)),
+                            concat('"http_status":', toJSONString(http_status)),
                             ''
                         ),
-                        if (
+                        if(
                             payment_type IS NOT NULL,
-                            concat ('"payment_type":', toJSONString (payment_type)),
+                            concat('"payment_type":', toJSONString(payment_type)),
                             ''
                         ),
-                        if (
+                        if(
                             success IS NOT NULL,
-                            concat ('"success":', toJSONString (success)),
+                            concat('"success":', toJSONString(success)),
                             ''
                         ),
-                        if (
+                        if(
                             error_code IS NOT NULL,
-                            concat ('"error_code":', toJSONString (error_code)),
+                            concat('"error_code":', toJSONString(error_code)),
                             ''
                         ),
-                        if (
+                        if(
                             `query` IS NOT NULL,
-                            concat ('"query":', toJSONString (`query`)),
+                            concat('"query":', toJSONString(`query`)),
                             ''
                         ),
-                        if (
+                        if(
                             results_count IS NOT NULL,
-                            concat ('"results_count":', toJSONString (results_count)),
+                            concat('"results_count":', toJSONString(results_count)),
                             ''
                         ),
-                        if (
+                        if(
                             clicked_position IS NOT NULL,
-                            concat (
-                                '"clicked_position":',
-                                toJSONString (clicked_position)
-                            ),
+                            concat('"clicked_position":', toJSONString(clicked_position)),
                             ''
                         ),
-                        if (
+                        if(
                             rating IS NOT NULL,
-                            concat ('"rating":', toJSONString (rating)),
+                            concat('"rating":', toJSONString(rating)),
                             ''
                         ),
-                        if (
+                        if(
                             text_length IS NOT NULL,
-                            concat ('"text_length":', toJSONString (text_length)),
+                            concat('"text_length":', toJSONString(text_length)),
                             ''
                         ),
-                        if (
+                        if(
                             wishlist_name IS NOT NULL,
-                            concat ('"wishlist_name":', toJSONString (wishlist_name)),
+                            concat('"wishlist_name":', toJSONString(wishlist_name)),
                             ''
                         )
                     )
@@ -168,9 +159,9 @@ SELECT
         ),
         'JSON'
     ) AS event_properties,
-    now64 (3, 'UTC') AS ingested_at
-FROM
-    transformed.behavioral_events_raw
+
+    now64(3, 'UTC') AS ingested_at
+FROM transformed.behavioral_events_raw
 WHERE
     `timestamp` IS NOT NULL
     AND user_id IS NOT NULL
