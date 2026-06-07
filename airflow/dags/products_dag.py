@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from pathlib import Path
 from airflow import DAG
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.standard.operators.python import PythonOperator
@@ -22,19 +23,7 @@ default_args = {
     'retry_delay': timedelta(minutes=5)
 }
 
-PRODUCTS_AVRO_SCHEMA = {
-    "type": "record",
-    "name": "products",
-    "namespace": "my_db",
-    "fields": [
-        {"name": "product_id", "type": "string"},
-        {"name": "name", "type": "string"},
-        {"name": "price", "type": "float"},
-        {"name": "category", "type": "string"},
-        {"name": "inventory", "type": "int"},
-        {"name": "popularity_score", "type": "string"}
-    ]
-}
+PRODUCTS_SCHEMA_PATH = Path("/opt/airflow/schema/avro/transactional/product.avsc")
 
 
 def extract_products_by_id(**context):
@@ -69,11 +58,11 @@ def extract_products_by_id(**context):
     result = []
     for row in records:
         record_dict = dict(zip(columns, row))
+
         for key, value in record_dict.items():
             if isinstance(value, datetime):
-                record_dict[key] = value.isoformat()
-            elif isinstance(value, Decimal):
-                record_dict[key] = str(value)
+                record_dict[key] = int(value.timestamp() * 1000)
+
         result.append(record_dict)
 
     last_product_id = records[-1][columns.index('product_id')]
@@ -84,6 +73,7 @@ def extract_products_by_id(**context):
     logging.info(f"Extracted {len(result)} new products")
 
     return result
+
 
 
 def send_products_to_kafka(**context):
@@ -98,10 +88,13 @@ def send_products_to_kafka(**context):
 
     schema_registry_conf = {'url': 'http://schema-registry:8081'}
     schema_registry_client = SchemaRegistryClient(schema_registry_conf)
+    
+    with open(PRODUCTS_SCHEMA_PATH, "r", encoding="utf-8") as f:
+        products_schema_str = f.read()
 
     avro_serializer = AvroSerializer(
         schema_registry_client=schema_registry_client,
-        schema_str=json.dumps(PRODUCTS_AVRO_SCHEMA),
+        schema_str=products_schema_str,
         conf={'auto.register.schemas': True}
     )
 
