@@ -32,8 +32,8 @@ CREATE TABLE
     IF NOT EXISTS transformed.orders (
         order_id UInt64,
         user_id UInt64,
-        timestamp DateTime,
-        total Float64,
+        timestamp DateTime64 (6, 'UTC'),
+        total Decimal(10, 2),
         status String,
         payment_method String
     ) ENGINE = MergeTree ()

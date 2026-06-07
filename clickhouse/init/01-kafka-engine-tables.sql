@@ -1,22 +1,22 @@
 CREATE DATABASE IF NOT EXISTS transformed;
 
 CREATE TABLE
-    IF NOT EXISTS transformed.kafka_users (
+    transformed.kafka_users (
         user_id UInt64,
         name String,
         email String,
         signup_date Date,
-        device String,
-        loyalty_tier String,
-        location String
+        device Nullable (String),
+        loyalty_tier Nullable (String),
+        location Nullable (String)
     ) ENGINE = Kafka SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
     kafka_topic_list = 'ecommerce.users.ingest',
     kafka_group_name = 'clickhouse_users_consumer_group',
     format_avro_schema_registry_url = 'http://schema-registry:8081',
     kafka_format = 'AvroConfluent',
     kafka_num_consumers = 1,
-    kafka_auto_offset_reset = 'earliest',
-    kafka_thread_per_consumer = 1;
+    kafka_thread_per_consumer = 1,
+    kafka_handle_error_mode = 'stream';
 
 CREATE TABLE
     IF NOT EXISTS transformed.kafka_products (
@@ -32,25 +32,24 @@ CREATE TABLE
     format_avro_schema_registry_url = 'http://schema-registry:8081',
     kafka_format = 'AvroConfluent',
     kafka_num_consumers = 1,
-    kafka_auto_offset_reset = 'earliest',
     kafka_thread_per_consumer = 1;
 
 CREATE TABLE
-    IF NOT EXISTS transformed.kafka_orders (
+    transformed.kafka_orders (
         order_id UInt64,
         user_id UInt64,
-        timestamp DateTime,
-        total Float64,
+        timestamp DateTime64 (6, 'UTC'),
+        total Decimal(10, 2),
         status String,
-        payment_method String
+        payment_method Nullable (String)
     ) ENGINE = Kafka SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
     kafka_topic_list = 'ecommerce.orders.ingest',
     kafka_group_name = 'clickhouse_orders_consumer_group',
-    kafka_auto_offset_reset = 'earliest',
     format_avro_schema_registry_url = 'http://schema-registry:8081',
     kafka_format = 'AvroConfluent',
     kafka_num_consumers = 1,
-    kafka_thread_per_consumer = 1;
+    kafka_thread_per_consumer = 1,
+    kafka_handle_error_mode = 'stream';
 
 CREATE TABLE
     transformed.behavioral_events_raw (
@@ -62,10 +61,8 @@ CREATE TABLE
         product_id Nullable (String),
         quantity Nullable (Int32),
         cart_total_items Nullable (Int32),
-        cart_items Nullable (
-            Array (
-                Tuple (product_id String, price Float64, quantity Int32)
-            )
+        cart_items Array (
+            Tuple (product_id String, price Float64, quantity Int32)
         ),
         cart_value Nullable (Float64),
         shipping_method Nullable (String),
@@ -85,10 +82,10 @@ CREATE TABLE
         wishlist_name Nullable (String)
     ) ENGINE = Kafka SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
     kafka_topic_list = 'ecommerce.events.ingest',
-    kafka_group_name = 'clickhouse_behavioral_events_consumer_group_v5',
+    kafka_group_name = 'clickhouse_behavioral_events_consumer_group_v2',
     format_avro_schema_registry_url = 'http://schema-registry:8081',
     kafka_format = 'AvroConfluent',
-    kafka_auto_offset_reset = 'earliest',
     kafka_num_consumers = 1,
     kafka_thread_per_consumer = 1,
-    kafka_handle_error_mode = 'stream';
+    kafka_handle_error_mode = 'stream',
+    input_format_null_as_default = 1;
