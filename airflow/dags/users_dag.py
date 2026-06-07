@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+from pathlib import Path
 from decimal import Decimal
 import re
 from airflow import DAG
@@ -22,26 +23,7 @@ default_args = {
     'retry_delay': timedelta(minutes=5)
 }
 
-USERS_AVRO_SCHEMA = {
-    "type": "record",
-    "name": "users",
-    "namespace": "my_db",
-    "fields": [
-        {"name": "user_id", "type": "string"},
-        {"name": "name", "type": "string"},
-        {"name": "email", "type": "string"},
-        {
-            "name": "signup_date",
-            "type": {
-                "type": "long",
-                "logicalType": "timestamp-millis"
-            }
-        },
-        {"name": "device", "type": "string"},
-        {"name": "loyalty_tier", "type": "string"},
-        {"name": "location", "type": "string"}
-    ]
-}
+USERS_SCHEMA_PATH = Path("/opt/airflow/schema/avro/transactional/user.avsc")
 
 
 def extract_users_incremental(**context):
@@ -73,15 +55,28 @@ def extract_users_incremental(**context):
         logging.info("No new users found. Skipping.")
         context['task_instance'].xcom_push(key='users_data', value=[])
         return []
-
+        
     result = []
+    epoch_date = date(1970, 1, 1)
+
     for row in records:
         record_dict = dict(zip(columns, row))
+
         for key, value in record_dict.items():
-            if isinstance(value, datetime):
+            if key == 'signup_date' and value is not None:
+                if isinstance(value, datetime):
+                    record_dict[key] = (value.date() - epoch_date).days
+                elif isinstance(value, date):
+                    record_dict[key] = (value - epoch_date).days
+                else:
+                    raise TypeError(f"Unsupported type for signup_date: {type(value)} value={value}")
+
+            elif isinstance(value, datetime):
                 record_dict[key] = int(value.timestamp() * 1000)
+
             elif isinstance(value, Decimal):
                 record_dict[key] = str(value)
+
         result.append(record_dict)
 
     last_user_id = records[-1][columns.index('user_id')]
@@ -107,9 +102,12 @@ def send_users_to_kafka(**context):
     schema_registry_conf = {'url': 'http://schema-registry:8081'}
     schema_registry_client = SchemaRegistryClient(schema_registry_conf)
 
+    with open(USERS_SCHEMA_PATH, "r", encoding="utf-8") as f:
+        users_schema_str = f.read()
+
     avro_serializer = AvroSerializer(
         schema_registry_client=schema_registry_client,
-        schema_str=json.dumps(USERS_AVRO_SCHEMA),
+        schema_str=users_schema_str,
         conf={'auto.register.schemas': True}
     )
 

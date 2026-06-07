@@ -1,11 +1,10 @@
 import sys
 import json
 import logging
-import time
 import os
 import shutil
-
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
@@ -13,134 +12,122 @@ from airflow.providers.mongo.hooks.mongo import MongoHook
 from airflow.sensors.python import PythonSensor
 
 sys.path.append("/opt/scripts")
+from json_transformation import parse_timestamp
 
 PROJECT_ROOT = "/opt/airflow/dags/load_mongo_docs_to_kafka"
 sys.path.append(PROJECT_ROOT)
-
-from json_transformation import parse_timestamp
-
 
 TRANSFORMED_DIR = "/opt/airflow/data/transformed"
 PROCESSED_DIR = "/opt/airflow/data/processed"
 
 
-default_args = {
-    "start_date": datetime(2026, 5, 29),
-}
-
-
-def is_file_complete(file_path, stable_time=5):
+def is_file_complete(file_path, stable_seconds=10):
     if not os.path.exists(file_path):
         return False
 
-    size1 = os.path.getsize(file_path)
-    time.sleep(stable_time)
-    size2 = os.path.getsize(file_path)
-
-    return size1 == size2 and size1 > 0
-
-
-def get_latest_transformed_file():
-    if not os.path.exists(TRANSFORMED_DIR):
-        return None
-
-    files = [
-        os.path.join(TRANSFORMED_DIR, f)
-        for f in os.listdir(TRANSFORMED_DIR)
-        if f.endswith(".jsonl")
-    ]
-
-    if not files:
-        return None
-
-    return max(files, key=os.path.getmtime)
-
-
-def check_for_transformed_file():
-    file_path = get_latest_transformed_file()
-
-    if not file_path:
+    if os.path.getsize(file_path) == 0:
         return False
 
-    return is_file_complete(file_path)
+    age_seconds = time.time() - os.path.getmtime(file_path)
+    return age_seconds >= stable_seconds
+
+
+def get_ready_transformed_files():
+    if not os.path.exists(TRANSFORMED_DIR):
+        return []
+
+    files = []
+    for file_name in os.listdir(TRANSFORMED_DIR):
+        if not file_name.endswith(".jsonl"):
+            continue
+
+        file_path = os.path.join(TRANSFORMED_DIR, file_name)
+        if is_file_complete(file_path):
+            files.append(file_path)
+
+    return files
+
+
+def check_for_transformed_files():
+    files = get_ready_transformed_files()
+
+    if not files:
+        print("[INFO] No complete transformed files found.")
+        return False
+
+    print("[INFO] Ready transformed files:")
+    for file_path in files:
+        print(f" - {file_path}")
+
+    return True
 
 
 def load_behavioral_to_mongo(**kwargs):
-    file_path = get_latest_transformed_file()
+    os.makedirs(PROCESSED_DIR, exist_ok=True)
 
-    if not file_path:
-        raise ValueError(f"No transformed .jsonl file found in {TRANSFORMED_DIR}")
+    files = get_ready_transformed_files()
+    if not files:
+        raise ValueError("No complete transformed files available for loading.")
 
-    if not is_file_complete(file_path):
-        raise ValueError(f"File {file_path} is still being transferred or incomplete.")
+    hook = MongoHook(mongo_conn_id="mongo_default")
+    collection = hook.get_collection("events", mongo_db="behavioral")
 
-    try:
-        data = []
+    loaded_files = []
+    total_inserted = 0
 
-        with open(file_path, "r", encoding="utf-8") as f:
-            for line in f:
-                if not line.strip():
-                    continue
+    for file_path in files:
+        file_name = os.path.basename(file_path)
+        docs = []
 
-                doc = json.loads(line)
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                for line_no, line in enumerate(f, start=1):
+                    line = line.strip()
+                    if not line:
+                        continue
 
-                if "timestamp" in doc:
-                    doc["timestamp"] = parse_timestamp(doc["timestamp"])
+                    doc = json.loads(line)
 
-                if "transformed_at" in doc:
-                    doc["transformed_at"] = parse_timestamp(doc["transformed_at"])
+                    if "timestamp" in doc and doc["timestamp"]:
+                        doc["timestamp"] = parse_timestamp(doc["timestamp"])
 
-                # Important checkpoint field.
-                # Newly inserted docs will be picked up by Kafka producer.
-                doc["kafka_produced"] = False
-                doc["source_file"] = os.path.basename(file_path)
+                    if "transformed_at" in doc and doc["transformed_at"]:
+                        doc["transformed_at"] = parse_timestamp(doc["transformed_at"])
 
-                data.append(doc)
+                    doc["kafka_produced"] = False
+                    doc["transformed_file"] = file_name
 
-        if not data:
-            logging.info("No data to insert.")
-            return {
-                "inserted_count": 0,
-                "file_path": file_path,
-            }
+                    docs.append(doc)
 
-        mongo_hook = MongoHook(mongo_conn_id="mongo_default")
-        client = mongo_hook.get_conn()
-        db = client["behavioral"]
-        collection = db["events"]
+            if not docs:
+                print(f"[WARN] No documents found in transformed file: {file_path}")
+                continue
 
-        result = collection.insert_many(data)
-        inserted_count = len(result.inserted_ids)
+            result = collection.insert_many(docs)
+            inserted_count = len(result.inserted_ids)
 
-        logging.info(f"Successfully inserted {inserted_count} records into MongoDB.")
+            processed_path = os.path.join(PROCESSED_DIR, file_name)
+            shutil.move(file_path, processed_path)
 
-        os.makedirs(PROCESSED_DIR, exist_ok=True)
+            print(f"[INFO] Inserted {inserted_count} docs from {file_name}")
+            print(f"[INFO] Moved to processed: {processed_path}")
 
-        processed_path = os.path.join(
-            PROCESSED_DIR,
-            os.path.basename(file_path)
-        )
+            loaded_files.append(file_name)
+            total_inserted += inserted_count
 
-        shutil.move(file_path, processed_path)
+        except Exception as e:
+            print(f"[ERROR] Failed loading file {file_name}: {e}")
+            continue
 
-        logging.info(f"Moved processed file to {processed_path}")
+    if not loaded_files:
+        raise ValueError("No transformed files were successfully loaded into MongoDB.")
 
-        return {
-            "inserted_count": inserted_count,
-            "processed_file": processed_path,
-        }
-
-    except Exception as e:
-        logging.error(f"Error loading data into MongoDB: {e}")
-        raise
+    kwargs["ti"].xcom_push(key="loaded_files", value=loaded_files)
+    print(f"[INFO] Total inserted docs: {total_inserted}")
+    print(f"[INFO] Loaded files: {loaded_files}")
 
 
-def produce_behavioural_data(**kwargs):
-    ti = kwargs["ti"]
-    load_result = ti.xcom_pull(task_ids="load_behavioral_data")
-
-    logging.info(f"Load task result: {load_result}")
-
+def produce_behavioural_data():
     old_cwd = os.getcwd()
 
     try:
@@ -149,41 +136,47 @@ def produce_behavioural_data(**kwargs):
         from app.producer import EventProducer
 
         result = EventProducer().run()
-
         logging.info(f"Kafka producer result: {result}")
-
         return result
 
     finally:
         os.chdir(old_cwd)
 
 
+default_args = {
+    "owner": "airflow",
+    "depends_on_past": False,
+    "retries": 1,
+    "retry_delay": timedelta(seconds=30),
+}
+
+
 with DAG(
-    "load_behavioral_to_mongo",
+    dag_id="load_behavioral_to_mongo",
     default_args=default_args,
-    description="Load behavioral data into MongoDB and publish unproduced Mongo documents to Kafka",
-    schedule="*/10 * * * *",
+    start_date=datetime(2026, 1, 1),
+    schedule="*/5 * * * *",
     catchup=False,
-    tags=["mongodb", "etl", "load", "kafka"],
     max_active_runs=1,
+    tags=["mongo", "load", "behavioral"],
 ) as dag:
 
-    wait_for_file = PythonSensor(
+    wait_for_behavioral_file = PythonSensor(
         task_id="wait_for_behavioral_file",
-        python_callable=check_for_transformed_file,
+        python_callable=check_for_transformed_files,
         poke_interval=30,
-        timeout=3600,
-        mode="poke",
+        timeout=120,
+        mode="reschedule",
     )
 
-    load_task = PythonOperator(
+    load_behavioral_data = PythonOperator(
         task_id="load_behavioral_data",
         python_callable=load_behavioral_to_mongo,
     )
 
-    kafka_task = PythonOperator(
-        task_id="produce_behavioural_data",
+    produce_behavioral_data = PythonOperator(
+        task_id="produce_behavioral_data",
         python_callable=produce_behavioural_data,
     )
 
-    wait_for_file >> load_task >> kafka_task
+    wait_for_behavioral_file >> load_behavioral_data >> produce_behavioral_data
