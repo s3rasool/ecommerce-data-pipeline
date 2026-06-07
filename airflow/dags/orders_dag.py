@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from pathlib import Path
 from decimal import Decimal
 import re
 from airflow import DAG
@@ -9,7 +10,6 @@ from confluent_kafka import SerializingProducer
 from confluent_kafka.serialization import StringSerializer
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroSerializer
-import json
 import logging
 
 default_args = {
@@ -22,25 +22,7 @@ default_args = {
     'retry_delay': timedelta(minutes=5)
 }
 
-ORDERS_AVRO_SCHEMA = {
-    "type": "record",
-    "name": "orders",
-    "namespace": "my_db",
-    "fields": [
-        {"name": "order_id", "type": "string"},
-        {"name": "user_id", "type": "string"},
-        {
-            "name": "timestamp",
-            "type": {
-                "type": "long",
-                "logicalType": "timestamp-millis"
-            }
-        },
-        {"name": "total", "type": "float"},
-        {"name": "status", "type": "string"},
-        {"name": "payment_method", "type": "string"}
-    ]
-}
+ORDERS_SCHEMA_PATH = Path("/opt/airflow/schema/avro/transactional/order.avsc")
 
 
 def extract_orders_incremental(**context):
@@ -78,9 +60,7 @@ def extract_orders_incremental(**context):
         record_dict = dict(zip(columns, row))
         for key, value in record_dict.items():
             if isinstance(value, datetime):
-                record_dict[key] = int(value.timestamp() * 1000)
-            elif isinstance(value, Decimal):
-                record_dict[key] = str(value)
+                record_dict[key] = int(value.timestamp() * 1_000_000)
         result.append(record_dict)
 
     last_order_id = records[-1][columns.index('order_id')]
@@ -105,10 +85,13 @@ def send_orders_to_kafka(**context):
 
     schema_registry_conf = {'url': 'http://schema-registry:8081'}
     schema_registry_client = SchemaRegistryClient(schema_registry_conf)
+    
+    with open(ORDERS_SCHEMA_PATH, "r", encoding="utf-8") as f:
+        orders_schema_str = f.read()
 
     avro_serializer = AvroSerializer(
         schema_registry_client=schema_registry_client,
-        schema_str=json.dumps(ORDERS_AVRO_SCHEMA),
+        schema_str=orders_schema_str,
         conf={'auto.register.schemas': True}
     )
 
@@ -120,6 +103,12 @@ def send_orders_to_kafka(**context):
     producer = SerializingProducer(producer_conf)
 
     for record in data:
+        logging.info(
+            f"Sending order_id={record.get('order_id')} "
+            f"timestamp={record.get('timestamp')} ({type(record.get('timestamp'))}) "
+            f"total={record.get('total')} ({type(record.get('total'))})"
+        )
+
         key = str(record.get('order_id', 'unknown'))
         producer.produce(
             topic='ecommerce.orders.ingest',
