@@ -7,15 +7,18 @@
 This query returns the top 20 products ranked by `popularity_score`. If products have the same popularity score, products with higher inventory are shown first.
 ```sql
 SELECT
-snapshot_date,
-product_id,
-name,
-category,
-price,
-inventory,
-popularity_score
-FROM transformed.product_catalog_analytics
-ORDER BY popularity_score DESC, inventory DESC
+  snapshot_date,
+  product_id,
+  name,
+  category,
+  price,
+  inventory,
+  popularity_score
+FROM 
+  transformed.product_catalog_analytics
+ORDER BY 
+  popularity_score DESC,
+  inventory DESC
 LIMIT 20;
 ```
 ---
@@ -25,14 +28,17 @@ LIMIT 20;
 This query lists products grouped by category and ordered by popularity within each category.
 ```sql
 SELECT
-category,
-product_id,
-name,
-price,
-inventory,
-popularity_score
-FROM transformed.product_catalog_analytics
-ORDER BY category, popularity_score DESC;
+  category,
+  product_id,
+  name,
+  price,
+  inventory,
+  popularity_score
+FROM 
+  transformed.product_catalog_analytics
+ORDER BY 
+  category,
+  popularity_score DESC;
 ```
 ---
 
@@ -50,18 +56,21 @@ It shows:
 
 ```sql
 SELECT
-snapshot_date,
-category,
-sum(product_count) AS product_count,
-sum(total_inventory) AS total_inventory,
-round(avg(toFloat64(avg_price)), 2) AS avg_price,
-round(avg(avg_popularity), 2) AS avg_popularity,
-max(max_popularity) AS max_popularity
-FROM transformed.category_catalog_analytics
+  snapshot_date,
+  category,
+  sum(product_count) AS product_count,
+  sum(total_inventory) AS total_inventory,
+  round(avg(toFloat64(avg_price)), 2) AS avg_price,
+  round(avg(avg_popularity), 2) AS avg_popularity,
+  max(max_popularity) AS max_popularity
+FROM 
+  transformed.category_catalog_analytics
 GROUP BY
-snapshot_date,
-category
-ORDER BY snapshot_date DESC, avg_popularity DESC;
+  snapshot_date,
+  category
+ORDER BY 
+  snapshot_date DESC,
+  avg_popularity DESC;
 ```
 ---
 
@@ -73,13 +82,17 @@ It is useful for detecting products that may need restocking soon.
 
 ```sql
 SELECT
-product_id,
-name,
-category,
-inventory,
-popularity_score
-FROM transformed.product_catalog_analytics
-WHERE inventory < 10
-ORDER BY popularity_score DESC, inventory ASC;
+  product_id,
+  name,
+  category,
+  inventory,
+  popularity_score
+FROM 
+  transformed.product_catalog_analytics
+WHERE 
+  inventory < 10
+ORDER BY 
+  popularity_score DESC,
+  inventory ASC;
 ```
 
