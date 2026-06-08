@@ -21,14 +21,15 @@ ORDER BY
         WHEN 'payment_attempt' THEN 6
         WHEN 'order_complete' THEN 7
     END;
-
-# Product Catalog Analytics Queries
+```
+## Product Catalog Analytics Queries
 
 ---
 
-## 1. Top Products by Popularity
+### 1. Top Products by Popularity
 
 This query returns the top 20 products ranked by `popularity_score`. If products have the same popularity score, products with higher inventory are shown first.
+  
 ```sql
 SELECT
   snapshot_date,
@@ -47,7 +48,7 @@ LIMIT 20;
 ```
 ---
 
-## 2. Products in Each Category
+### 2. Products in Each Category
 
 This query lists products grouped by category and ordered by popularity within each category.
 ```sql
@@ -66,7 +67,7 @@ ORDER BY
 ```
 ---
 
-## 3. Category Performance
+### 3. Category Performance
 
 This query summarizes catalog-level performance by category and date.
 
@@ -98,7 +99,7 @@ ORDER BY
 ```
 ---
 
-## 4. Low-Inventory, High-Popularity Products
+### 4. Low-Inventory, High-Popularity Products
 
 This query identifies popular products with low stock.
 
