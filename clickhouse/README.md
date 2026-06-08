@@ -17,14 +17,13 @@ popularity_score
 FROM transformed.product_catalog_analytics
 ORDER BY popularity_score DESC, inventory DESC
 LIMIT 20;
-
+```
 ---
 
 ## 2. Products in Each Category
 
 This query lists products grouped by category and ordered by popularity within each category.
-
-sql
+```sql
 SELECT
 category,
 product_id,
@@ -34,7 +33,7 @@ inventory,
 popularity_score
 FROM transformed.product_catalog_analytics
 ORDER BY category, popularity_score DESC;
-
+```
 ---
 
 ## 3. Category Performance
@@ -49,7 +48,7 @@ It shows:
 - average popularity score
 - highest popularity score in the category
 
-sql
+```sql
 SELECT
 snapshot_date,
 category,
@@ -63,7 +62,7 @@ GROUP BY
 snapshot_date,
 category
 ORDER BY snapshot_date DESC, avg_popularity DESC;
-
+```
 ---
 
 ## 4. Low-Inventory, High-Popularity Products
@@ -72,7 +71,7 @@ This query identifies popular products with low stock.
 
 It is useful for detecting products that may need restocking soon.
 
-sql
+```sql
 SELECT
 product_id,
 name,
@@ -82,6 +81,5 @@ popularity_score
 FROM transformed.product_catalog_analytics
 WHERE inventory < 10
 ORDER BY popularity_score DESC, inventory ASC;
-
----
+```
 
